@@ -1,0 +1,11 @@
+# IDE & tool state
+.claude/
+.omc/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
