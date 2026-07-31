@@ -213,6 +213,19 @@ body::before {
 .dot-p1 { background:#19c8b9 } .dot-p2 { background:#e0b85e } .dot-p3 { background:#f0a870 }
 .dot-p4 { background:#b69ac7 } .dot-p5 { background:#83b66f }
 
+/* side notes panel */
+.side-notes { background:var(--paper-strong); border:2px solid var(--line); border-radius:var(--rds); box-shadow:0 6px 0 var(--shadow),0 12px 28px rgba(114,93,66,.12); margin-top:22px; overflow:hidden }
+.side-notes-title { padding:12px 16px; background:#f2e2c4; border-bottom:2px dashed #d5bb92; color:#725d42; font-weight:900; font-size:.82rem; text-transform:uppercase; letter-spacing:.05em }
+.side-notes-list { max-height:300px; overflow-y:auto; padding:4px 0 }
+.side-note-item { display:block; padding:8px 14px; color:var(--muted); text-decoration:none; font-size:.76rem; font-weight:700; border-bottom:1px dashed #ead9bc; cursor:pointer; transition:all .15s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.side-note-item:hover { background:#edf9f4; color:#5f4b34; padding-left:18px }
+.side-note-item .sn-phase { font-size:.65rem; color:#aa9275; margin-right:4px }
+.side-note-item .sn-date { font-size:.65rem; color:#19c8b9; margin-left:6px }
+.side-notes-empty { padding:14px 16px; color:var(--muted); font-size:.76rem; text-align:center }
+
+/* note save status indicator */
+.note-save-status { font-size:.68rem; color:#19c8b9; flex-shrink:0; min-width:40px; text-align:right }
+
 .modal label { color:#80694f; font-weight:800; font-size:.82rem; display:block; margin-bottom:4px }
 .modal input,.modal textarea,.modal select { width:100%; margin-bottom:10px }
 .modal input:focus,.modal textarea:focus,.modal select:focus { outline:none; border-color:var(--pri-deep) }
@@ -314,6 +327,10 @@ input[type="text"], input[type="number"], input[type="date"], input[type="search
       <a href="#phase4" onclick="scrollToPhase('phase4')"><span class="dot dot-p4"></span>框架实战<span class="pct" id="navPct4">0%</span></a>
       <a href="#phase5" onclick="scrollToPhase('phase5')"><span class="dot dot-p5"></span>生产 & 求职<span class="pct" id="navPct5">0%</span></a>
     </nav>
+    <div class="side-notes" id="sideNotes">
+      <div class="side-notes-title">📝 笔记列表</div>
+      <div class="side-notes-list" id="sideNotesList"></div>
+    </div>
   </aside>
 
   <div class="content" id="contentArea"></div>
@@ -3444,12 +3461,84 @@ GitHub贡献: XX commits, 3个Star项目, 1个HuggingFace模型
 // ============================================================
 const STORAGE_KEY = 'ai_roadmap_progress_v2';
 const CHECKIN_KEY = 'ai_roadmap_checkins_v2';
+const DB_NAME = 'LearnNotesDB', DB_VER = 1;
 
 function loadState() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; } }
 function saveState(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
 function loadCheckins() { try { const r = localStorage.getItem(CHECKIN_KEY); return r ? JSON.parse(r) : []; } catch { return []; } }
 function saveCheckins(c) { localStorage.setItem(CHECKIN_KEY, JSON.stringify(c)); }
 function getKey(pi, wi, di) { return pi+'-'+wi+'-'+di; }
+
+// ============================================================
+// INDEXEDDB NOTES DATABASE
+// ============================================================
+let noteCache = new Map(), dbReady = false, saveTimer = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => { e.target.result.createObjectStore('notes', {keyPath:'_id'}); };
+    req.onsuccess = e => { resolve(e.target.result); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function initNotes() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction('notes', 'readonly');
+    const store = tx.objectStore('notes');
+    const all = await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    all.forEach(row => { noteCache.set(row._id, {note: row.note || '', savedAt: row.savedAt || '', topic: row.topic || ''}); });
+    dbReady = true;
+    // Also migrate any localStorage notes into DB
+    const old = loadState();
+    let migrated = false;
+    Object.keys(old).forEach(k => {
+      if (old[k] && old[k].note && !noteCache.has(k)) {
+        noteCache.set(k, {note: old[k].note, savedAt: '', topic: ''});
+        migrated = true;
+      }
+    });
+    if (migrated) await flushNoteCache(db);
+    db.close();
+  } catch(e) { dbReady = false; }
+}
+
+async function flushNoteCache(dbOverride) {
+  let db = dbOverride;
+  if (!db) { db = await openDB(); }
+  const tx = db.transaction('notes', 'readwrite');
+  const store = tx.objectStore('notes');
+  for (const [k, v] of noteCache) {
+    store.put({_id: k, note: v.note, savedAt: Date.now(), topic: v.topic || ''});
+  }
+  await new Promise(r => { tx.oncomplete = r; tx.onerror = r; });
+  if (!dbOverride) db.close();
+}
+
+function saveNoteDB(pi, wi, di, note, topic) {
+  const k = getKey(pi, wi, di);
+  noteCache.set(k, {note: note || '', savedAt: Date.now(), topic: topic || ''});
+  const el = document.getElementById('noteStat_'+pi+'_'+wi+'_'+di);
+  if (el) { el.textContent = '💾'; setTimeout(() => { el.textContent = '✅ '+fmtDate(Date.now()); setTimeout(() => { if (el && el.textContent.startsWith('✅')) el.textContent = '📅 '+fmtDate(Date.now()); }, 1200); }, 150); }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { flushNoteCache(); renderSideNotes(); }, 800);
+}
+
+function noteSavedAt(pi, wi, di) {
+  const r = noteCache.get(getKey(pi, wi, di));
+  return r ? r.savedAt : 0;
+}
+
+function fmtDate(ts) {
+  const d = new Date(ts), pad = n => (''+n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
 
 // ============================================================
 // RENDER
@@ -3497,7 +3586,9 @@ function renderAll() {
       w.days.forEach((d, di) => {
         const k = getKey(pi, wi, di);
         const isDone = state[k] && state[k].done;
-        const note = state[k] ? (state[k].note||'') : '';
+        const note = noteCache.get(getKey(pi, wi, di));
+        const noteVal = note ? note.note : '';
+        const noteSaved = note ? note.savedAt : 0;
         html += '<div class="day-card">';
         html += '<div class="day-header" onclick="toggleDayPanel(this)">';
         html += '<div class="day-check'+(isDone?' done':'')+'" onclick="event.stopPropagation();toggleDay('+pi+','+wi+','+di+')"></div>';
@@ -3507,7 +3598,10 @@ function renderAll() {
         html += '</div>';
         html += '<div class="day-body">';
         html += renderDetail(d.detail);
-        html += '<div class="day-note-row"><input class="day-note-input" placeholder="📝 添加学习笔记..." value="'+escHtml(note)+'" onchange="saveNote('+pi+','+wi+','+di+',this.value)" onclick="event.stopPropagation()"></div>';
+        html += '<div class="day-note-row">';
+        html += '<textarea class="day-note-input" placeholder="📝 写点学习笔记..." rows="2" data-pi="'+pi+'" data-wi="'+wi+'" data-di="'+di+'" data-topic="'+escHtml(d.topic.substring(0,80))+'" oninput="saveNoteDB('+pi+','+wi+','+di+',this.value,this.dataset.topic)" onclick="event.stopPropagation()">'+escHtml(noteVal)+'</textarea>';
+        html += '<span class="note-save-status" id="noteStat_'+pi+'_'+wi+'_'+di+'">'+(noteSaved?'📅 '+fmtDate(noteSaved):'')+'</span>';
+        html += '</div>';
         html += '</div></div>';
       });
 
@@ -3564,7 +3658,7 @@ function toggleWeekAll(pi, wi, n) {
   for(let d=0;d<n;d++){const k=getKey(pi,wi,d);if(!s[k])s[k]={done:false,note:'',hours:0};s[k].done=!ad;if(!ad&&!s[k].hours)s[k].hours=w.days[d].hours||3;}
   saveState(s); renderAll(); toast(!ad?'✅ 整周完成！':'↩️ 整周重置');
 }
-function saveNote(pi,wi,di,note){const s=loadState(),k=getKey(pi,wi,di);if(!s[k])s[k]={done:false,note:'',hours:0};s[k].note=note;saveState(s);}
+function saveNote(pi,wi,di,note){saveNoteDB(pi,wi,di,note,'');}
 function scrollToPhase(id){const el=document.getElementById(id);if(el){const b=el.querySelector('.phase-body');if(b&&!b.classList.contains('open')){b.classList.add('open');el.querySelector('.phase-arrow')?.classList.add('open');}el.scrollIntoView({behavior:'smooth',block:'start'});}}
 
 function expandAll(){document.querySelectorAll('.phase-body,.week-body,.day-body,.phase-arrow').forEach(e=>e.classList.add('open'));toast('📖 全部展开');}
@@ -3759,15 +3853,60 @@ function renderDetail(text) {
   return out;
 }
 
+function renderSideNotes() {
+  const el = document.getElementById('sideNotesList'); if (!el) return;
+  const items = [];
+  noteCache.forEach((v, k) => { if (v.note && v.note.trim()) items.push({...v, _id: k}); });
+  items.sort((a, b) => (b.savedAt||0) - (a.savedAt||0));
+  if (!items.length) { el.innerHTML = '<div class="side-notes-empty">暂无笔记，在学习卡片里写吧</div>'; return; }
+  let h = '';
+  items.forEach(it => {
+    const parts = it._id.split('-');
+    const pn = parseInt(parts[0])+1, wn = parseInt(parts[1])+1, dn = parseInt(parts[2])+1;
+    h += '<a class="side-note-item" onclick="scrollToDay('+parts.join(',')+')" title="'+escHtml(it.note.substring(0,100))+'">';
+    h += '<span class="sn-phase">P'+pn+'W'+wn+'D'+dn+'</span>';
+    h += (it.topic || it.note).substring(0, 35) + ((it.topic || it.note).length > 35 ? '...' : '');
+    h += '<span class="sn-date">'+(it.savedAt ? fmtDate(it.savedAt) : '')+'</span>';
+    h += '</a>';
+  });
+  el.innerHTML = h;
+}
+
+function scrollToDay(pi, wi, di) {
+  // Jump to the target day card by navigating the flat DOM order
+  // Day cards are rendered in phase > week > day order, same as our data
+  let idx = 0, targetIdx = 0;
+  for (let pIdx = 0; pIdx < D.length; pIdx++) {
+    for (let wIdx = 0; wIdx < D[pIdx].weeks.length; wIdx++) {
+      for (let dIdx = 0; dIdx < D[pIdx].weeks[wIdx].days.length; dIdx++) {
+        if (pIdx === pi && wIdx === wi && dIdx === di) { targetIdx = idx; break; }
+        idx++;
+      }
+      if (targetIdx > 0 || (pIdx === pi && wIdx === wi)) break;
+    }
+    if (targetIdx > 0 || pIdx === pi) break;
+  }
+  const allDays = document.querySelectorAll('.day-card');
+  const card = allDays[targetIdx];
+  if (!card) return;
+  // Open parent panels
+  let parent = card.closest('.week-body'); if (parent) parent.classList.add('open');
+  parent = card.closest('.phase-body'); if (parent) parent.classList.add('open');
+  const body = card.querySelector('.day-body'); if (body) body.classList.add('open');
+  card.scrollIntoView({behavior:'smooth', block:'center'});
+  card.style.boxShadow = '0 0 0 4px var(--pri)';
+  setTimeout(() => { card.style.boxShadow = ''; }, 2000);
+}
+
 function escHtml(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';}
 
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async ()=>{
+  await initNotes();
   renderAll();
+  renderSideNotes();
   document.getElementById('checkinModal').addEventListener('click',function(e){if(e.target===this)closeCheckinModal();});
   document.addEventListener('keydown',function(e){if(e.ctrlKey&&e.key==='k'){e.preventDefault();openCheckinModal();}});
-
-
-  console.log('📋 学习路线图已就绪 | 点击每天的学习卡片展开详细指南');
+  console.log('📋 学习路线图已就绪 | 笔记自动保存到 IndexedDB | 侧栏查看所有笔记');
 });
 </script>
 </body>
