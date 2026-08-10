@@ -975,10 +975,43 @@ function renderAll() {
     if (!hashHandled) {
         const m = location.hash.match(/^#day-(\d+)-(\d+)-(\d+)$/);
         if (m) {
-            selected = { type: 'day', pi: +m[1], wi: +m[2], di: +m[3] };
-            openGroups.add('p' + selected.pi);
-            openGroups.add('p' + selected.pi + '-w' + selected.wi);
+            const pi = D.findIndex(p => p.id === +m[1]);
+            if (pi >= 0) {
+                const wi = D[pi].weeks.findIndex(w => w.id === +m[2]);
+                if (wi >= 0) {
+                    const di = D[pi].weeks[wi].days.findIndex(d => d.id === +m[3]);
+                    if (di >= 0) {
+                        selected = { type: 'day', pi: pi, wi: wi, di: di };
+                        openGroups.add('p' + pi);
+                        openGroups.add('p' + pi + '-w' + wi);
+                    }
+                }
+            }
             hashHandled = true;
+        } else {
+            const pm = location.hash.match(/^#phase-(\d+)$/);
+            if (pm) {
+                const pi = D.findIndex(p => p.id === +pm[1]);
+                if (pi >= 0) {
+                    selected = { type: 'phase', pi: pi, wi: 0, di: 0 };
+                    openGroups.add('p' + pi);
+                }
+                hashHandled = true;
+            } else {
+                const wm = location.hash.match(/^#week-(\d+)-(\d+)$/);
+                if (wm) {
+                    const pi = D.findIndex(p => p.id === +wm[1]);
+                    if (pi >= 0) {
+                        const wi = D[pi].weeks.findIndex(w => w.id === +wm[2]);
+                        if (wi >= 0) {
+                            selected = { type: 'week', pi: pi, wi: wi, di: 0 };
+                            openGroups.add('p' + pi);
+                            openGroups.add('p' + pi + '-w' + wi);
+                        }
+                    }
+                    hashHandled = true;
+                }
+            }
         }
     }
     renderSidebar();
@@ -1085,7 +1118,13 @@ function renderPhase(pi) {
         h += '<span class="doc-list-meta">' + wp.wd + '/' + wp.total + ' &middot; ' + wp.pct + '%</span></a>';
     });
     h += '</div>';
-    h += renderRes(pi + 1);
+    if (p.resources && p.resources.length) {
+        h += '<div class="resource-block"><h4>推荐资源</h4><div class="resource-tags">';
+        p.resources.forEach(r => {
+            h += '<a href="' + escHtml(r.url) + '" target="_blank" class="resource-tag ' + (r.kind === 'paid' ? 'paid' : 'free') + '">' + escHtml(r.title) + '</a>';
+        });
+        h += '</div></div>';
+    }
     h += '</article>';
     return h;
 }
@@ -1193,7 +1232,7 @@ function highlightMdCode(line) {
 function mdToHtml(text) {
     text = (text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     text = text.replace(/^【([^】]+)】(.*)$/gm, function (m, title, rest) {
-        return '## ' + title + (rest ? ' ' + rest.trim() : '');
+        return '## ' + title + (rest ? '\n\n' + rest.trim() : '');
     });
     text = text.replace(/^\s*•\s+/gm, '- ');
     text = text.replace(/^\s*\[CODE\s*(\w*)\]/gm, '```$1');
@@ -1201,6 +1240,66 @@ function mdToHtml(text) {
 
     const lines = text.split('\n');
     let out = '', i = 0;
+
+    function looksLikeCode(s) {
+        return /^[a-zA-Z_][\w.]*\s*[=({]/.test(s) ||
+            /^[a-zA-Z_][\w.]*\[/.test(s) ||
+            /^(from|import|pip|docker|git|curl)\s/.test(s) ||
+            /^\$\s/.test(s) ||
+            /^(if|for|while|def|class|return|print)\s/.test(s) ||
+            /^\w+\(/.test(s);
+    }
+
+    function collectListExtra(start) {
+        let html = '';
+        while (start < lines.length) {
+            const raw = lines[start];
+            const trimmed = raw.trim();
+            const indent = raw.length - raw.trimStart().length;
+            if (trimmed === '' || /^(#{1,6})\s/.test(trimmed) || /^```/.test(trimmed) || /^>\s?/.test(trimmed)) break;
+            if (indent === 0 && (/^[-*•]\s+/.test(trimmed) || /^\d+[.、]\s+/.test(trimmed))) break;
+            if (/^(→|✅|⚠️|🎯)/.test(trimmed)) {
+                html += '<br>' + inlineMd(escHtml(trimmed));
+                start++;
+                continue;
+            }
+            if (looksLikeCode(trimmed) || (indent >= 4 && /^[A-Za-z_$\[#]/.test(trimmed))) {
+                const buf = [trimmed];
+                start++;
+                while (start < lines.length) {
+                    const next = lines[start].trim();
+                    const nextIndent = lines[start].length - lines[start].trimStart().length;
+                    if (next === '' || nextIndent === 0 || /^(#{1,6})\s/.test(next) || /^[-*•]\s+/.test(next) || /^\d+[.、]\s+/.test(next) || /^```/.test(next)) break;
+                    buf.push(next);
+                    start++;
+                }
+                html += '<pre class="rt-code">' + buf.map(highlightMdCode).join('\n') + '</pre>';
+                continue;
+            }
+            html += '<br>' + inlineMd(escHtml(trimmed));
+            start++;
+        }
+        return { html: html, i: start };
+    }
+
+    function renderList(kind, start) {
+        const tag = kind === 'ol' ? 'ol' : 'ul';
+        const cls = kind === 'ol' ? 'rt-ol' : 'rt-ul';
+        const itemRe = kind === 'ol' ? /^\d+[.、]\s+/ : /^[-*•]\s+/;
+        out += '<' + tag + ' class="' + cls + '">\n';
+        while (start < lines.length && itemRe.test(lines[start].trim())) {
+            const raw = lines[start].trim();
+            const content = inlineMd(escHtml(raw.replace(itemRe, '')));
+            start++;
+            const extra = collectListExtra(start);
+            out += '<li>' + content + extra.html + '</li>\n';
+            start = extra.i;
+            while (start < lines.length && lines[start].trim() === '') start++;
+            if (start >= lines.length || !itemRe.test(lines[start].trim())) break;
+        }
+        out += '</' + tag + '>\n';
+        return start;
+    }
     while (i < lines.length) {
         const line = lines[i].trimEnd();
         const t = line.trim();
@@ -1234,22 +1333,12 @@ function mdToHtml(text) {
         }
 
         if (/^[-*•]\s+/.test(t)) {
-            out += '<ul class="rt-ul">\n';
-            while (i < lines.length && /^[-*•]\s+/.test(lines[i].trim())) {
-                out += '<li>' + inlineMd(escHtml(lines[i].trim().replace(/^[-*•]\s+/, ''))) + '</li>\n';
-                i++;
-            }
-            out += '</ul>\n';
+            i = renderList('ul', i);
             continue;
         }
 
         if (/^\d+[.、]\s+/.test(t)) {
-            out += '<ol class="rt-ol">\n';
-            while (i < lines.length && /^\d+[.、]\s+/.test(lines[i].trim())) {
-                out += '<li>' + inlineMd(escHtml(lines[i].trim().replace(/^\d+[.、]\s+/, ''))) + '</li>\n';
-                i++;
-            }
-            out += '</ol>\n';
+            i = renderList('ol', i);
             continue;
         }
 

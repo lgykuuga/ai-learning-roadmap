@@ -15,7 +15,7 @@ from sqlalchemy import (
 # relationship 描述 ORM 对象之间的关联，方便通过对象属性访问关联数据。
 from sqlalchemy.orm import relationship
 # 导入所有 ORM 模型共同继承的声明式基类。
-from database import Base
+from database import Base, sync_engine
 
 
 # 定义阶段 ORM 模型；继承 Base 后，这个类会映射到一张数据库表。
@@ -41,6 +41,7 @@ class Phase(Base):
     weeks = relationship("Week", back_populates="phase", order_by="Week.sort_order")
     # 一个 Phase 对应多个 Tip，并按 Tip.sort_order 排序。
     tips = relationship("Tip", back_populates="phase", order_by="Tip.sort_order")
+    resources = relationship("Resource", back_populates="phase", order_by="Resource.sort_order")
 
 
 # 定义周 ORM 模型。
@@ -164,4 +165,43 @@ class Tip(Base):
 
 # 选一个简单名字导出
 # __all__ 明确 from models import * 时允许导出的名称，不影响显式导入。
-__all__ = ["Phase", "Week", "Day", "Progress", "Checkin", "Tip", "Base"]
+class Resource(Base):
+    __tablename__ = "resources"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    phase_id = Column(Integer, ForeignKey("phases.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    url = Column(String(500), nullable=False)
+    kind = Column(String(20), default="free")
+    sort_order = Column(Integer, default=0)
+
+    phase = relationship("Phase", back_populates="resources")
+
+
+class AdminUser(Base):
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(200), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    sessions = relationship("AdminSession", back_populates="user")
+
+
+class AdminSession(Base):
+    __tablename__ = "admin_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)
+    token = Column(String(100), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    user = relationship("AdminUser", back_populates="sessions")
+
+
+__all__ = ["Phase", "Week", "Day", "Progress", "Checkin", "Tip", "Resource",
+           "AdminUser", "AdminSession", "Base"]
+
+Base.metadata.create_all(bind=sync_engine)

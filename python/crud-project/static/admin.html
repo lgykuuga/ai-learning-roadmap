@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学习路线后台管理</title>
+<style>
+:root {
+  --bg: #f5f7fa;
+  --panel: #fff;
+  --line: #e4e7ed;
+  --text: #303133;
+  --muted: #909399;
+  --primary: #409eff;
+  --danger: #f56c6c;
+  --success: #67c23a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  line-height: 1.6;
+}
+.hidden { display: none !important; }
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.08);
+}
+.login-card h1 { margin: 0 0 20px; font-size: 20px; }
+.login-card label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 14px; }
+.login-card input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; }
+.login-card button { width: 100%; margin-top: 18px; }
+.error { min-height: 20px; margin-top: 8px; color: var(--danger); font-size: 13px; }
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+.topbar {
+  height: 56px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.topbar strong { font-size: 16px; }
+.topbar .spacer { flex: 1; }
+.layout { flex: 1; display: flex; min-height: 0; }
+.side { width: 180px; padding: 16px 12px; background: #fff; border-right: 1px solid var(--line); }
+.side button { width: 100%; padding: 10px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+.side button:hover, .side button.active { background: #ecf5ff; color: var(--primary); }
+.main-area { flex: 1; padding: 20px; overflow: auto; }
+.panel {
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.panel-head h2, .panel-head h3 { margin: 0; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; }
+.table th { color: var(--muted); font-weight: 600; }
+.actions { display: flex; gap: 6px; }
+button {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+}
+button:hover { color: var(--primary); border-color: #c6e2ff; background: #ecf5ff; }
+button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+button.primary:hover { background: #66b1ff; border-color: #66b1ff; color: #fff; }
+button.danger { color: var(--danger); border-color: #fbc4c4; }
+button.danger:hover { background: #fef0f0; border-color: #fbc4c4; color: var(--danger); }
+.form-grid { display: grid; gap: 12px; margin-bottom: 14px; }
+.form-grid label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px; }
+.form-grid input, .form-grid textarea, .form-grid select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.form-grid textarea { min-height: 120px; resize: vertical; }
+.form-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.form-row .grow { flex: 1; min-width: 180px; }
+.back { margin-bottom: 12px; }
+.empty { padding: 20px; text-align: center; color: var(--muted); }
+.content-layout { display: flex; gap: 16px; align-items: flex-start; }
+.tree-panel { width: 300px; flex-shrink: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.tree-head { padding: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+.tree-head strong { font-size: 14px; }
+.tree-group { margin-left: 14px; }
+.tree-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #f0f2f5; cursor: pointer; font-size: 13px; }
+.tree-item:hover { background: #ecf5ff; color: var(--primary); }
+.tree-item.active { background: #ecf5ff; color: var(--primary); }
+.tree-item .caret { width: 16px; color: var(--muted); }
+.tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item.phase { font-weight: 600; }
+.tree-item.week { padding-left: 20px; }
+.tree-item.day { padding-left: 32px; }
+.editor-panel { flex: 1; min-width: 0; }
+@media (max-width: 700px) {
+  .layout { flex-direction: column; }
+  .side { width: 100%; border-right: 0; border-bottom: 1px solid var(--line); }
+  .main-area { padding: 12px; }
+  .content-layout { flex-direction: column; }
+  .tree-panel { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="loginView" class="login-wrap">
+  <form class="login-card" onsubmit="return doLogin(event)">
+    <h1>学习路线后台</h1>
+    <label>用户名</label>
+    <input id="loginUser" value="admin">
+    <label>密码</label>
+    <input id="loginPass" type="password" value="admin123">
+    <div id="loginError" class="error"></div>
+    <button class="primary">登录</button>
+  </form>
+</div>
+
+<div id="appView" class="app hidden">
+  <header class="topbar">
+    <strong>内容管理</strong>
+    <span id="adminName"></span>
+    <span class="spacer"></span>
+    <button onclick="logout()">退出</button>
+  </header>
+  <div class="layout">
+    <aside class="side">
+      <button id="navContent" class="active" onclick="showContentTree()">内容管理</button>
+      <button id="navCheckin" onclick="showCheckinList()">打卡管理</button>
+      <button id="navStats" onclick="showStats()">统计概览</button>
+    </aside>
+    <main id="mainArea" class="main-area"></main>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('roadmap_admin_token') || '';
+let adminName = localStorage.getItem('roadmap_admin_name') || '';
+let phases = [];
+let currentPhase = null;
+let currentWeek = null;
+let currentDay = null;
+let contentNode = { type: 'phase', phaseId: null, weekId: null, dayId: null };
+let expandedKeys = new Set();
+let weekPhaseId = '';
+let dayPhaseId = '';
+let dayWeekId = '';
+let checkins = [];
+let currentCheckin = null;
+let checkinPage = 1;
+let checkinPageSize = 20;
+let checkinTotal = 0;
+
+function esc(s) {
+  return s == null ? '' : String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function authHeaders(extra) {
+  return Object.assign({
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + token
+  }, extra || {});
+}
+
+async function api(path, options) {
+  options = options || {};
+  const res = await fetch(path, Object.assign({}, options, {
+    headers: authHeaders(options.headers || {})
+  }));
+  if (res.status === 401) {
+    logout();
+    throw new Error('登录已失效');
+  }
+  let body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(body.detail || body.msg || '请求失败');
+  return body.data;
+}
+
+function showLogin() {
+  token = '';
+  adminName = '';
+  localStorage.removeItem('roadmap_admin_token');
+  localStorage.removeItem('roadmap_admin_name');
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('appView').classList.add('hidden');
+}
+
+function showApp() {
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('appView').classList.remove('hidden');
+  document.getElementById('adminName').textContent = adminName;
+  loadPhases();
+}
+
+async function doLogin(event) {
+  event.preventDefault();
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  try {
+    const data = await api('/api/admin/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: username, password: password })
+    });
+    token = data.token;
+    adminName = data.username;
+    localStorage.setItem('roadmap_admin_token', token);
+    localStorage.setItem('roadmap_admin_name', adminName);
+    showApp();
+  } catch (e) {
+    document.getElementById('loginError').textContent = e.message;
+  }
+}
+
+async function logout() {
+  if (token) {
+    try { await api('/api/admin/logout', { method: 'POST' }); } catch (e) {}
+  }
+  showLogin();
+}
+
+function setMain(html) {
+  document.getElementById('mainArea').innerHTML = html;
+}
+
+function activateNav(id) {
+  ['navPhase', 'navWeek', 'navDay', 'navCheckin', 'navStats'].forEach(function (n) {
+    document.getElementById(n).classList.toggle('active', n === id);
+  });
+}
+
+async function loadPhases() {
+  try {
+    phases = await api('/api/phases');
+    showPhaseList();
+  } catch (e) {
+    setMain('<div class="empty">' + esc(e.message) + '</div>');
+  }
+}
+
+function showPhaseList() {
+  activateNav('navPhase');
+  currentPhase = null;
+  currentWeek = null;
+  currentDay = null;
+  let rows = phases.map(p => {
+    const dayCount = p.weeks.reduce((n, w) => n + w.days.length, 0);
+    return '<tr>' +
+      '<td><a href="javascript:void(0)" onclick="openPhase(' + p.id + ')">' + esc(p.title) + '</a></td>' +
+      '<td>' + esc(p.period || '') + '</td>' +
+      '<td>' + dayCount + '</td>' +
+      '<td><div class="actions"><button onclick="openPhase(' + p.id + ')">编辑</button><button class="danger" onclick="deletePhase(' + p.id + ')">删除</button></div></td>' +
+      '</tr>';
+  }).join('');
+  setMain(
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>阶段列表</h2><button class="primary" onclick="newPhase()">新增阶段</button></div>' +
+    '<table class="table"><thead><tr><th>标题</th><th>周期</th><th>学习日</th><th>操作</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="4" class="empty">暂无阶段</td></tr>') +
+    '</tbody></table></div>'
+  );
+}
+
+function newPhase() {
+  currentPhase = null;
+  renderPhaseForm({ title: '', period: '', desc: '', tips: [], resources: [] });
+}
+
+function openPhase(id) {
+  currentPhase = phases.find(p => p.id === id) || null;
+  renderPhaseForm(currentPhase);
+}
+
+function renderPhaseForm(p) {
+  currentWeek = null;
+  currentDay = null;
+  const p2 = p || { title: '', period: '', desc: '', tips: [], resources: [] };
+  const tips = (p2.tips || []).join('\n');
+  const resources = (p2.resources || []).map(r => r.title + '|' + (r.url || '') + '|' + (r.kind || 'free')).join('\n');
+  setMain(
+    '<button class="back" onclick="showPhaseList()">返回阶段列表</button>' +
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (p ? '编辑阶段' : '新增阶段') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>标题</label><input id="phaseTitle" value="' + esc(p2.title) + '"></div>' +
+    '<div><label>周期</label><input id="phasePeriod" value="' + esc(p2.period || '') + '"></div>' +
+    '<div><label>描述（Markdown）</label><textarea id="phaseDesc">' + esc(p2.desc || '') + '</textarea></div>' +
+    '<div><label>建议（每行一条）</label><textarea id="phaseTips">' + esc(tips) + '</textarea></div>' +
+    '<div><label>资源（每行：标题|地址|free/paid）</label><textarea id="phaseResources">' + esc(resources) + '</textarea></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="savePhase()">保存阶段</button>' +
+    (p ? '<button class="danger" onclick="deletePhase(' + p.id + ')">删除阶段</button>' : '') +
+    '</div></div>'
+  );
+}
+
+function parseResources(text) {
+  return text.split('\n').map((line, i) => {
+    const parts = line.split('|').map(s => s.trim());
+    if (!parts[0]) return null;
+    return { title: parts[0], url: parts[1] || '#', kind: parts[2] === 'paid' ? 'paid' : 'free', sort_order: i };
+  }).filter(Boolean);
+}
+
+async function savePhase() {
+  const body = {
+    title: document.getElementById('phaseTitle').value.trim(),
+    period: document.getElementById('phasePeriod').value.trim(),
+    desc: document.getElementById('phaseDesc').value,
+    tips: document.getElementById('phaseTips').value.split('\n').map(s => s.trim()).filter(Boolean),
+    resources: parseResources(document.getElementById('phaseResources').value)
+  };
+  try {
+    if (currentPhase) {
+      await api('/api/phases/' + currentPhase.id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/api/phases', { method: 'POST', body: JSON.stringify(body) });
+    }
+    await loadPhases();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deletePhase(id) {
+  if (!confirm('确认删除该阶段及其所有内容？')) return;
+  try {
+    await api('/api/phases/' + id, { method: 'DELETE' });
+    await loadPhases();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function newWeek() {
+  currentWeek = null;
+  renderWeekForm({ title: '', week_num: '', weeks_large: false, days: [] });
+}
+
+function openWeek(id) {
+  currentWeek = (currentPhase.weeks || []).find(w => w.id === id) || null;
+  renderWeekForm(currentWeek);
+}
+
+function renderWeekForm(w) {
+  currentDay = null;
+  const w2 = w || { title: '', week_num: '', weeks_large: false, days: [] };
+  const dayRows = (w2.days || []).map((d, i) =>
+    '<tr><td>' + (i + 1) + '</td><td>' + esc(d.topic) + '</td><td>' + (d.hours || 3) + '</td>' +
+    '<td><div class="actions"><button onclick="openDay(' + d.id + ')">编辑</button><button class="danger" onclick="deleteDay(' + d.id + ')">删除</button></div></td></tr>'
+  ).join('');
+  setMain(
+    '<button class="back" onclick="openPhase(' + currentPhase.id + ')">返回阶段</button>' +
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (w ? '编辑周' : '新增周') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>标题</label><input id="weekTitle" value="' + esc(w2.title) + '"></div>' +
+    '<div><label>全局周序号</label><input id="weekNum" type="number" value="' + esc(w2.week_num || '') + '"></div>' +
+    '<div><label><input id="weekLarge" type="checkbox" ' + (w2.weeks_large ? 'checked' : '') + '> 跨多周</label></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveWeek()">保存周</button>' +
+    (w ? '<button class="danger" onclick="deleteWeek(' + w.id + ')">删除周</button>' : '') +
+    '</div></div>' +
+    '<div class="panel"><div class="panel-head"><h3>学习日管理</h3><button class="primary" onclick="newDay()">新增学习日</button></div>' +
+    '<table class="table"><thead><tr><th>序号</th><th>主题</th><th>学时</th><th>操作</th></tr></thead><tbody>' +
+    (dayRows || '<tr><td colspan="4" class="empty">暂无学习日</td></tr>') +
+    '</tbody></table></div>'
+  );
+}
+
+async function saveWeek() {
+  if (!weekPhaseId) {
+    alert('请先选择所属阶段');
+    return;
+  }
+  const body = {
+    title: document.getElementById('weekTitle').value.trim(),
+    week_num: document.getElementById('weekNum').value ? Number(document.getElementById('weekNum').value) : null,
+    weeks_large: document.getElementById('weekLarge').checked
+  };
+  try {
+    if (currentWeek) {
+      await api('/api/weeks/' + currentWeek.id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/api/phases/' + currentPhase.id + '/weeks', { method: 'POST', body: JSON.stringify(body) });
+    }
+    await loadPhases();
+    openPhase(currentPhase.id);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteWeek(id) {
+  if (!confirm('确认删除该周及其学习日？')) return;
+  try {
+    await api('/api/weeks/' + id, { method: 'DELETE' });
+    await loadPhases();
+    openPhase(currentPhase.id);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function newDay() {
+  currentDay = null;
+  renderDayForm({ topic: '', hours: 3, resource: '', detail: '' });
+}
+
+function openDay(id) {
+  currentDay = (currentWeek.days || []).find(d => d.id === id) || null;
+  renderDayForm(currentDay);
+}
+
+function renderDayForm(d) {
+  const d2 = d || { topic: '', hours: 3, resource: '', detail: '' };
+  setMain(
+    '<button class="back" onclick="openWeek(' + currentWeek.id + ')">返回周</button>' +
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (d ? '编辑学习日' : '新增学习日') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>主题</label><input id="dayTopic" value="' + esc(d2.topic) + '"></div>' +
+    '<div><label>建议学时</label><input id="dayHours" type="number" step="0.5" value="' + esc(d2.hours || 3) + '"></div>' +
+    '<div><label>资源地址</label><input id="dayResource" value="' + esc(d2.resource || '') + '"></div>' +
+    '<div><label>内容（Markdown）</label><textarea id="dayDetail">' + esc(d2.detail || '') + '</textarea></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveDay()">保存学习日</button>' +
+    (d ? '<button class="danger" onclick="deleteDay(' + d.id + ')">删除学习日</button>' : '') +
+    '</div></div>'
+  );
+}
+
+async function saveDay() {
+  if (!currentDay && !dayWeekId) {
+    alert('请先选择所属周');
+    return;
+  }
+  const body = {
+    topic: document.getElementById('dayTopic').value.trim(),
+    hours: Number(document.getElementById('dayHours').value || 3),
+    resource: document.getElementById('dayResource').value.trim(),
+    detail: document.getElementById('dayDetail').value
+  };
+  try {
+    if (currentDay) {
+      await api('/api/days/' + currentDay.id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/api/weeks/' + currentWeek.id + '/days', { method: 'POST', body: JSON.stringify(body) });
+    }
+    await loadPhases();
+    openWeek(currentWeek.id);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteDay(id) {
+  if (!confirm('确认删除该学习日？')) return;
+  try {
+    await api('/api/days/' + id, { method: 'DELETE' });
+    await loadPhases();
+    openWeek(currentWeek.id);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function phaseOptions(selectedId) {
+  return phases.map(function (p) {
+    return '<option value="' + p.id + '"' + (p.id === Number(selectedId) ? ' selected' : '') + '>' + esc(p.title) + '</option>';
+  }).join('');
+}
+
+function showWeekList() {
+  activateNav('navWeek');
+  currentWeek = null;
+  currentDay = null;
+  if (!weekPhaseId && phases.length) weekPhaseId = phases[0].id;
+  renderWeekList();
+}
+
+function renderWeekList() {
+  const p = phases.find(x => x.id === Number(weekPhaseId)) || phases[0];
+  if (!p) {
+    setMain('<div class="empty">请先新增阶段</div>');
+    return;
+  }
+  weekPhaseId = p.id;
+  const rows = p.weeks.map(function (w, i) {
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td>' + esc(w.title) + '</td>' +
+      '<td>' + w.days.length + '</td>' +
+      '<td><div class="actions"><button onclick="openWeek(' + w.id + ')">编辑</button><button class="danger" onclick="deleteWeek(' + w.id + ')">删除</button></div></td>' +
+      '</tr>';
+  }).join('');
+  setMain(
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>周管理</h2><button class="primary" onclick="newWeek()">新增周</button></div>' +
+    '<div class="form-grid"><div><label>所属阶段</label><select id="weekPhase" onchange="weekPhaseId=Number(this.value);renderWeekList()">' +
+    phaseOptions(weekPhaseId) + '</select></div></div>' +
+    '<table class="table"><thead><tr><th>序号</th><th>标题</th><th>学习日</th><th>操作</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="4" class="empty">该阶段暂无周</td></tr>') +
+    '</tbody></table></div>'
+  );
+}
+
+function newWeek() {
+  currentWeek = null;
+  if (!weekPhaseId && phases.length) weekPhaseId = phases[0].id;
+  renderWeekForm(null);
+}
+
+function openWeek(id) {
+  for (let pi = 0; pi < phases.length; pi++) {
+    const w = phases[pi].weeks.find(x => x.id === id);
+    if (w) {
+      currentPhase = phases[pi];
+      currentWeek = w;
+      weekPhaseId = phases[pi].id;
+      renderWeekForm(w);
+      return;
+    }
+  }
+}
+
+function renderWeekForm(w) {
+  const p = phases.find(x => x.id === Number(weekPhaseId)) || currentPhase || phases[0];
+  const w2 = w || { title: '', week_num: '', weeks_large: false };
+  setMain(
+    '<button class="back" onclick="showWeekList()">返回周管理</button>' +
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (w ? '编辑周' : '新增周') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>所属阶段</label><div>' + esc(p ? p.title : '') + '</div></div>' +
+    '<div><label>标题</label><input id="weekTitle" value="' + esc(w2.title) + '"></div>' +
+    '<div><label>全局周序号</label><input id="weekNum" type="number" value="' + esc(w2.week_num || '') + '"></div>' +
+    '<div><label><input id="weekLarge" type="checkbox" ' + (w2.weeks_large ? 'checked' : '') + '> 跨多周</label></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveWeek()">保存周</button>' +
+    (w ? '<button class="danger" onclick="deleteWeek(' + w.id + ')">删除周</button>' : '') +
+    '</div></div>'
+  );
+}
+
+async function saveWeek() {
+  const body = {
+    title: document.getElementById('weekTitle').value.trim(),
+    week_num: document.getElementById('weekNum').value ? Number(document.getElementById('weekNum').value) : null,
+    weeks_large: document.getElementById('weekLarge').checked
+  };
+  try {
+    if (currentWeek) {
+      await api('/api/weeks/' + currentWeek.id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/api/phases/' + weekPhaseId + '/weeks', { method: 'POST', body: JSON.stringify(body) });
+    }
+    await loadPhases();
+    showWeekList();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteWeek(id) {
+  if (!confirm('确认删除该周及其学习日？')) return;
+  try {
+    await api('/api/weeks/' + id, { method: 'DELETE' });
+    await loadPhases();
+    showWeekList();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function showDayList() {
+  activateNav('navDay');
+  currentDay = null;
+  if (!dayPhaseId && phases.length) dayPhaseId = phases[0].id;
+  const p = phases.find(x => x.id === Number(dayPhaseId)) || phases[0];
+  if (p) {
+    dayPhaseId = p.id;
+    if (!p.weeks.some(w => w.id === Number(dayWeekId))) {
+      dayWeekId = p.weeks.length ? p.weeks[0].id : '';
+    }
+  }
+  renderDayList();
+}
+
+function renderDayList() {
+  const p = phases.find(x => x.id === Number(dayPhaseId)) || phases[0];
+  if (!p) {
+    setMain('<div class="empty">请先新增阶段和周</div>');
+    return;
+  }
+  dayPhaseId = p.id;
+  const w = p.weeks.find(x => x.id === Number(dayWeekId)) || p.weeks[0];
+  if (!w) {
+    setMain(
+      '<div class="panel"><div class="panel-head"><h2>学习日管理</h2></div>' +
+      '<div class="form-grid"><div><label>所属阶段</label><select id="dayPhase" onchange="dayPhaseId=Number(this.value);dayWeekId=\'\';showDayList()">' +
+      phaseOptions(dayPhaseId) + '</select></div></div>' +
+      '<div class="empty">该阶段暂无周，请先新增周</div></div>'
+    );
+    return;
+  }
+  dayWeekId = w.id;
+  const rows = w.days.map(function (d, i) {
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td>' + esc(d.topic) + '</td>' +
+      '<td>' + (d.hours || 3) + '</td>' +
+      '<td><div class="actions"><button onclick="openDay(' + d.id + ')">编辑</button><button class="danger" onclick="deleteDay(' + d.id + ')">删除</button></div></td>' +
+      '</tr>';
+  }).join('');
+  setMain(
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>学习日管理</h2><button class="primary" onclick="newDay()">新增学习日</button></div>' +
+    '<div class="form-grid">' +
+    '<div><label>所属阶段</label><select id="dayPhase" onchange="dayPhaseId=Number(this.value);dayWeekId=\'\';showDayList()">' +
+    phaseOptions(dayPhaseId) + '</select></div>' +
+    '<div><label>所属周</label><select id="dayWeek" onchange="dayWeekId=Number(this.value);renderDayList()">' +
+    p.weeks.map(function (week) {
+      return '<option value="' + week.id + '"' + (week.id === Number(dayWeekId) ? ' selected' : '') + '>' + esc(week.title) + '</option>';
+    }).join('') + '</select></div>' +
+    '</div>' +
+    '<table class="table"><thead><tr><th>序号</th><th>主题</th><th>学时</th><th>操作</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="4" class="empty">该周暂无学习日</td></tr>') +
+    '</tbody></table></div>'
+  );
+}
+
+function newDay() {
+  currentDay = null;
+  if (!dayWeekId && phases.length) {
+    const p = phases.find(x => x.id === Number(dayPhaseId)) || phases[0];
+    if (p) dayWeekId = p.weeks.length ? p.weeks[0].id : '';
+  }
+  renderDayForm(null);
+}
+
+function openDay(id) {
+  for (let pi = 0; pi < phases.length; pi++) {
+    for (let wi = 0; wi < phases[pi].weeks.length; wi++) {
+      const d = phases[pi].weeks[wi].days.find(x => x.id === id);
+      if (d) {
+        currentPhase = phases[pi];
+        currentWeek = phases[pi].weeks[wi];
+        currentDay = d;
+        dayPhaseId = phases[pi].id;
+        dayWeekId = phases[pi].weeks[wi].id;
+        renderDayForm(d);
+        return;
+      }
+    }
+  }
+}
+
+function renderDayForm(d) {
+  const d2 = d || { topic: '', hours: 3, resource: '', detail: '' };
+  const p = phases.find(x => x.id === Number(dayPhaseId));
+  const w = p ? p.weeks.find(x => x.id === Number(dayWeekId)) : null;
+  setMain(
+    '<button class="back" onclick="showDayList()">返回学习日管理</button>' +
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (d ? '编辑学习日' : '新增学习日') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>所属阶段</label><div>' + esc(p ? p.title : '') + '</div></div>' +
+    '<div><label>所属周</label><div>' + esc(w ? w.title : '') + '</div></div>' +
+    '<div><label>主题</label><input id="dayTopic" value="' + esc(d2.topic) + '"></div>' +
+    '<div><label>建议学时</label><input id="dayHours" type="number" step="0.5" value="' + esc(d2.hours || 3) + '"></div>' +
+    '<div><label>资源地址</label><input id="dayResource" value="' + esc(d2.resource || '') + '"></div>' +
+    '<div><label>内容（Markdown）</label><textarea id="dayDetail">' + esc(d2.detail || '') + '</textarea></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveDay()">保存学习日</button>' +
+    (d ? '<button class="danger" onclick="deleteDay(' + d.id + ')">删除学习日</button>' : '') +
+    '</div></div>'
+  );
+}
+
+async function saveDay() {
+  const body = {
+    topic: document.getElementById('dayTopic').value.trim(),
+    hours: Number(document.getElementById('dayHours').value || 3),
+    resource: document.getElementById('dayResource').value.trim(),
+    detail: document.getElementById('dayDetail').value
+  };
+  try {
+    if (currentDay) {
+      await api('/api/days/' + currentDay.id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/api/weeks/' + dayWeekId + '/days', { method: 'POST', body: JSON.stringify(body) });
+    }
+    await loadPhases();
+    showDayList();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteDay(id) {
+  if (!confirm('确认删除该学习日？')) return;
+  try {
+    await api('/api/days/' + id, { method: 'DELETE' });
+    await loadPhases();
+    showDayList();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function refreshPhases() {
+  phases = await api('/api/phases');
+}
+
+async function loadPhases() {
+  try {
+    phases = await api('/api/phases');
+    showContentTree();
+  } catch (e) {
+    setMain('<div class="empty">' + esc(e.message) + '</div>');
+  }
+}
+
+function activateNav(id) {
+  ['navContent', 'navCheckin', 'navStats'].forEach(function (n) {
+    document.getElementById(n).classList.toggle('active', n === id);
+  });
+}
+
+function showContentTree() {
+  activateNav('navContent');
+  if (!contentNode.phaseId && phases.length) {
+    contentNode = { type: 'phase', phaseId: phases[0].id, weekId: null, dayId: null };
+    expandedKeys.add('p' + phases[0].id);
+  }
+  renderContentTree();
+}
+
+function treeHtml() {
+  let h = '<div class="tree-panel"><div class="tree-head"><strong>学习内容</strong><button class="primary" onclick="newPhaseFromTree()">新增阶段</button></div>';
+  phases.forEach(function (p) {
+    const pKey = 'p' + p.id;
+    const pOpen = expandedKeys.has(pKey);
+    const pActive = contentNode.type === 'phase' && contentNode.phaseId === p.id;
+    h += '<div class="tree-item phase' + (pActive ? ' active' : '') + '" onclick="selectTreeNode(\'phase\',' + p.id + ')">';
+    h += '<span class="caret" onclick="event.stopPropagation();toggleTree(\'' + pKey + '\')">' + (pOpen ? '&#9662;' : '&#9656;') + '</span>';
+    h += '<span class="name">' + esc(p.title) + '</span></div>';
+    if (pOpen) {
+      p.weeks.forEach(function (w) {
+        const wKey = 'w' + w.id;
+        const wOpen = expandedKeys.has(wKey);
+        const wActive = contentNode.type === 'week' && contentNode.phaseId === p.id && contentNode.weekId === w.id;
+        h += '<div class="tree-group">';
+        h += '<div class="tree-item week' + (wActive ? ' active' : '') + '" onclick="selectTreeNode(\'week\',' + p.id + ',' + w.id + ')">';
+        h += '<span class="caret" onclick="event.stopPropagation();toggleTree(\'' + wKey + '\')">' + (wOpen ? '&#9662;' : '&#9656;') + '</span>';
+        h += '<span class="name">' + esc(w.title) + '</span></div>';
+        if (wOpen) {
+          w.days.forEach(function (d) {
+            const dActive = contentNode.type === 'day' && contentNode.phaseId === p.id && contentNode.weekId === w.id && contentNode.dayId === d.id;
+            h += '<a class="tree-item day' + (dActive ? ' active' : '') + '" href="javascript:void(0)" onclick="selectTreeNode(\'day\',' + p.id + ',' + w.id + ',' + d.id + ')">';
+            h += '<span class="caret"></span><span class="name">' + esc(d.topic) + '</span></a>';
+          });
+        }
+        h += '</div>';
+      });
+    }
+  });
+  h += '</div>';
+  return h;
+}
+
+function toggleTree(key) {
+  if (expandedKeys.has(key)) expandedKeys.delete(key);
+  else expandedKeys.add(key);
+  renderContentTree();
+}
+
+function selectTreeNode(type, phaseId, weekId, dayId) {
+  const p = phases.find(x => x.id === phaseId);
+  if (!p && type !== 'phase') return;
+  contentNode = { type: type, phaseId: phaseId, weekId: weekId || null, dayId: dayId || null };
+  currentPhase = p || null;
+  currentWeek = null;
+  currentDay = null;
+  if (type === 'phase') {
+    expandedKeys.add('p' + phaseId);
+  }
+  if (type === 'week') {
+    const w = p.weeks.find(x => x.id === weekId);
+    if (!w) return;
+    currentWeek = w;
+    expandedKeys.add('p' + phaseId);
+    expandedKeys.add('w' + weekId);
+  }
+  if (type === 'day') {
+    const w = p.weeks.find(x => x.id === weekId);
+    if (!w) return;
+    const d = w.days.find(x => x.id === dayId);
+    if (!d) return;
+    currentWeek = w;
+    currentDay = d;
+    expandedKeys.add('p' + phaseId);
+    expandedKeys.add('w' + weekId);
+  }
+  renderContentTree();
+}
+
+function newPhaseFromTree() {
+  contentNode = { type: 'phase', phaseId: null, weekId: null, dayId: null };
+  currentPhase = null;
+  currentWeek = null;
+  currentDay = null;
+  renderContentTree();
+}
+
+function newWeekFromTree() {
+  const phaseId = contentNode.phaseId || (phases[0] ? phases[0].id : null);
+  if (!phaseId) {
+    alert('请先新增阶段');
+    return;
+  }
+  currentPhase = phases.find(x => x.id === phaseId);
+  currentWeek = null;
+  currentDay = null;
+  contentNode = { type: 'week', phaseId: phaseId, weekId: null, dayId: null };
+  expandedKeys.add('p' + phaseId);
+  renderContentTree();
+}
+
+function newDayFromTree() {
+  const phaseId = contentNode.phaseId || (phases[0] ? phases[0].id : null);
+  const p = phases.find(x => x.id === phaseId);
+  if (!p) {
+    alert('请先新增阶段');
+    return;
+  }
+  const weekId = contentNode.weekId || (p.weeks[0] ? p.weeks[0].id : null);
+  if (!weekId) {
+    alert('请先新增周');
+    return;
+  }
+  currentPhase = p;
+  currentWeek = p.weeks.find(x => x.id === weekId);
+  currentDay = null;
+  contentNode = { type: 'day', phaseId: phaseId, weekId: weekId, dayId: null };
+  expandedKeys.add('p' + phaseId);
+  expandedKeys.add('w' + weekId);
+  renderContentTree();
+}
+
+function renderContentTree() {
+  setMain('<div class="content-layout">' + treeHtml() + '<div class="editor-panel">' + contentEditorHtml() + '</div></div>');
+}
+
+function contentEditorHtml() {
+  if (!phases.length) {
+    return '<div class="panel"><div class="panel-head"><h2>暂无内容</h2><button class="primary" onclick="newPhaseFromTree()">新增阶段</button></div></div>';
+  }
+  if (contentNode.type === 'phase') {
+    currentPhase = contentNode.phaseId ? phases.find(x => x.id === contentNode.phaseId) || null : null;
+    return phaseFormHtml(currentPhase);
+  }
+  if (contentNode.type === 'week') {
+    const p = phases.find(x => x.id === contentNode.phaseId);
+    currentWeek = p ? p.weeks.find(x => x.id === contentNode.weekId) || null : null;
+    return weekFormHtml(currentWeek);
+  }
+  if (contentNode.type === 'day') {
+    const p = phases.find(x => x.id === contentNode.phaseId);
+    const w = p ? p.weeks.find(x => x.id === contentNode.weekId) : null;
+    currentWeek = w || null;
+    currentDay = w ? w.days.find(x => x.id === contentNode.dayId) || null : null;
+    return dayFormHtml(currentDay);
+  }
+  return '<div class="empty">请选择或新增内容</div>';
+}
+
+function phaseFormHtml(p) {
+  const p2 = p || { title: '', period: '', desc: '', tips: [], resources: [] };
+  const tips = (p2.tips || []).join('\n');
+  const resources = (p2.resources || []).map(r => r.title + '|' + (r.url || '') + '|' + (r.kind || 'free')).join('\n');
+  return '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (p ? '编辑阶段' : '新增阶段') + '</h2>' +
+    (p ? '<button onclick="newWeekFromTree()">新增周</button>' : '') +
+    '</div>' +
+    '<div class="form-grid">' +
+    '<div><label>标题</label><input id="phaseTitle" value="' + esc(p2.title) + '"></div>' +
+    '<div><label>周期</label><input id="phasePeriod" value="' + esc(p2.period || '') + '"></div>' +
+    '<div><label>描述（Markdown）</label><textarea id="phaseDesc">' + esc(p2.desc || '') + '</textarea></div>' +
+    '<div><label>建议（每行一条）</label><textarea id="phaseTips">' + esc(tips) + '</textarea></div>' +
+    '<div><label>资源（每行：标题|地址|free/paid）</label><textarea id="phaseResources">' + esc(resources) + '</textarea></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="savePhase()">保存阶段</button>' +
+    (p ? '<button class="danger" onclick="deletePhase(' + p.id + ')">删除阶段</button>' : '') +
+    '</div></div>';
+}
+
+function weekFormHtml(w) {
+  const p = phases.find(x => x.id === contentNode.phaseId);
+  const w2 = w || { title: '', week_num: '', weeks_large: false };
+  return '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (w ? '编辑周' : '新增周') + '</h2>' +
+    (w ? '<button onclick="newDayFromTree()">新增学习日</button>' : '') +
+    '</div>' +
+    '<div class="form-grid">' +
+    '<div><label>所属阶段</label><div>' + esc(p ? p.title : '') + '</div></div>' +
+    '<div><label>标题</label><input id="weekTitle" value="' + esc(w2.title) + '"></div>' +
+    '<div><label>全局周序号</label><input id="weekNum" type="number" value="' + esc(w2.week_num || '') + '"></div>' +
+    '<div><label><input id="weekLarge" type="checkbox" ' + (w2.weeks_large ? 'checked' : '') + '> 跨多周</label></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveWeek()">保存周</button>' +
+    (w ? '<button class="danger" onclick="deleteWeek(' + w.id + ')">删除周</button>' : '') +
+    '</div></div>';
+}
+
+function dayFormHtml(d) {
+  const p = phases.find(x => x.id === contentNode.phaseId);
+  const w = p ? p.weeks.find(x => x.id === contentNode.weekId) : null;
+  const d2 = d || { topic: '', hours: 3, resource: '', detail: '' };
+  return '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (d ? '编辑学习日' : '新增学习日') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>所属阶段</label><div>' + esc(p ? p.title : '') + '</div></div>' +
+    '<div><label>所属周</label><div>' + esc(w ? w.title : '') + '</div></div>' +
+    '<div><label>主题</label><input id="dayTopic" value="' + esc(d2.topic) + '"></div>' +
+    '<div><label>建议学时</label><input id="dayHours" type="number" step="0.5" value="' + esc(d2.hours || 3) + '"></div>' +
+    '<div><label>资源地址</label><input id="dayResource" value="' + esc(d2.resource || '') + '"></div>' +
+    '<div><label>内容（Markdown）</label><textarea id="dayDetail">' + esc(d2.detail || '') + '</textarea></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveDay()">保存学习日</button>' +
+    (d ? '<button class="danger" onclick="deleteDay(' + d.id + ')">删除学习日</button>' : '') +
+    '</div></div>';
+}
+
+async function savePhase() {
+  const body = {
+    title: document.getElementById('phaseTitle').value.trim(),
+    period: document.getElementById('phasePeriod').value.trim(),
+    desc: document.getElementById('phaseDesc').value,
+    tips: document.getElementById('phaseTips').value.split('\n').map(s => s.trim()).filter(Boolean),
+    resources: parseResources(document.getElementById('phaseResources').value)
+  };
+  try {
+    let savedId = null;
+    if (currentPhase) {
+      await api('/api/phases/' + currentPhase.id, { method: 'PUT', body: JSON.stringify(body) });
+      savedId = currentPhase.id;
+    } else {
+      const data = await api('/api/phases', { method: 'POST', body: JSON.stringify(body) });
+      savedId = data.id;
+    }
+    await refreshPhases();
+    if (savedId) selectTreeNode('phase', savedId);
+    else showContentTree();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deletePhase(id) {
+  if (!confirm('确认删除该阶段及其所有内容？')) return;
+  try {
+    await api('/api/phases/' + id, { method: 'DELETE' });
+    await refreshPhases();
+    contentNode = { type: 'phase', phaseId: null, weekId: null, dayId: null };
+    showContentTree();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function saveWeek() {
+  const body = {
+    title: document.getElementById('weekTitle').value.trim(),
+    week_num: document.getElementById('weekNum').value ? Number(document.getElementById('weekNum').value) : null,
+    weeks_large: document.getElementById('weekLarge').checked
+  };
+  try {
+    let savedId = null;
+    if (currentWeek) {
+      await api('/api/weeks/' + currentWeek.id, { method: 'PUT', body: JSON.stringify(body) });
+      savedId = currentWeek.id;
+    } else {
+      const data = await api('/api/phases/' + contentNode.phaseId + '/weeks', { method: 'POST', body: JSON.stringify(body) });
+      savedId = data.id;
+    }
+    await refreshPhases();
+    if (savedId) selectTreeNode('week', contentNode.phaseId, savedId);
+    else showContentTree();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteWeek(id) {
+  if (!confirm('确认删除该周及其学习日？')) return;
+  try {
+    await api('/api/weeks/' + id, { method: 'DELETE' });
+    await refreshPhases();
+    showContentTree();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function saveDay() {
+  const body = {
+    topic: document.getElementById('dayTopic').value.trim(),
+    hours: Number(document.getElementById('dayHours').value || 3),
+    resource: document.getElementById('dayResource').value.trim(),
+    detail: document.getElementById('dayDetail').value
+  };
+  try {
+    let savedId = null;
+    if (currentDay) {
+      await api('/api/days/' + currentDay.id, { method: 'PUT', body: JSON.stringify(body) });
+      savedId = currentDay.id;
+    } else {
+      const data = await api('/api/weeks/' + contentNode.weekId + '/days', { method: 'POST', body: JSON.stringify(body) });
+      savedId = data.id;
+    }
+    await refreshPhases();
+    if (savedId) selectTreeNode('day', contentNode.phaseId, contentNode.weekId, savedId);
+    else showContentTree();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteDay(id) {
+  if (!confirm('确认删除该学习日？')) return;
+  try {
+    await api('/api/days/' + id, { method: 'DELETE' });
+    await refreshPhases();
+    showContentTree();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function showCheckinList() {
+  activateNav('navCheckin');
+  if (!phases.length) {
+    try { phases = await api('/api/phases'); } catch (e) {}
+  }
+  currentCheckin = null;
+  await loadCheckins(1);
+}
+
+async function loadCheckins(page) {
+  if (page && page >= 1) checkinPage = page;
+  try {
+    const data = await api('/api/checkins?page=' + checkinPage + '&page_size=' + checkinPageSize);
+    checkins = data.list || [];
+    checkinTotal = data.total || 0;
+    renderCheckinList();
+  } catch (e) {
+    setMain('<div class="empty">' + esc(e.message) + '</div>');
+  }
+}
+
+function renderCheckinList() {
+  const rows = checkins.map(c =>
+    '<tr>' +
+    '<td>' + esc(c.date) + '</td>' +
+    '<td>' + esc(c.day_topic || '') + '</td>' +
+    '<td>' + esc(c.hours) + '</td>' +
+    '<td>' + esc(c.note || '') + '</td>' +
+    '<td><div class="actions"><button onclick="editCheckin(' + c.id + ')">编辑</button><button class="danger" onclick="deleteCheckin(' + c.id + ')">删除</button></div></td>' +
+    '</tr>'
+  ).join('');
+  setMain(
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>打卡列表</h2><button class="primary" onclick="newCheckin()">新增打卡</button></div>' +
+    '<table class="table"><thead><tr><th>日期</th><th>学习内容</th><th>学习时长</th><th>备注</th><th>操作</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="5" class="empty">暂无打卡记录</td></tr>') +
+    '</tbody></table></div>' +
+    '<div class="panel"><div class="form-row">' +
+    '<button onclick="loadCheckins(checkinPage - 1)">上一页</button>' +
+    '<span>第 ' + checkinPage + ' 页，共 ' + checkinTotal + ' 条</span>' +
+    '<button onclick="loadCheckins(checkinPage + 1)">下一页</button>' +
+    '</div></div>'
+  );
+}
+
+function newCheckin() {
+  currentCheckin = null;
+  renderCheckinForm(null);
+}
+
+function editCheckin(id) {
+  currentCheckin = checkins.find(c => c.id === id) || null;
+  if (currentCheckin) renderCheckinForm(currentCheckin);
+}
+
+function allDayOptions(selectedId) {
+  let html = '<option value="">选择学习日</option>';
+  phases.forEach(function (p) {
+    p.weeks.forEach(function (w) {
+      w.days.forEach(function (d) {
+        html += '<option value="' + d.id + '"' + (d.id === selectedId ? ' selected' : '') + '>' +
+          esc(p.title + ' / ' + w.title + ' / ' + d.topic) + '</option>';
+      });
+    });
+  });
+  return html;
+}
+
+function renderCheckinForm(c) {
+  const c2 = c || { date: new Date().toISOString().split('T')[0], hours: 3, note: '' };
+  setMain(
+    '<button class="back" onclick="loadCheckins()">返回打卡列表</button>' +
+    '<div class="panel">' +
+    '<div class="panel-head"><h2>' + (c ? '编辑打卡' : '新增打卡') + '</h2></div>' +
+    '<div class="form-grid">' +
+    '<div><label>学习日</label><select id="checkinDay">' + allDayOptions(c ? c.day_id : null) + '</select></div>' +
+    '<div><label>日期</label><input id="checkinDate" type="date" value="' + esc(c2.date) + '"></div>' +
+    '<div><label>学习时长</label><input id="checkinHours" type="number" step="0.5" min="0.5" value="' + esc(c2.hours) + '"></div>' +
+    '<div><label>备注</label><textarea id="checkinNote">' + esc(c2.note || '') + '</textarea></div>' +
+    '</div>' +
+    '<div class="form-row"><button class="primary" onclick="saveCheckin()">保存打卡</button>' +
+    (c ? '<button class="danger" onclick="deleteCheckin(' + c.id + ')">删除打卡</button>' : '') +
+    '</div></div>'
+  );
+}
+
+async function saveCheckin() {
+  const dayId = document.getElementById('checkinDay').value;
+  if (!dayId) {
+    alert('请选择学习日');
+    return;
+  }
+  const body = {
+    day_id: Number(dayId),
+    date: document.getElementById('checkinDate').value,
+    hours: Number(document.getElementById('checkinHours').value || 3),
+    note: document.getElementById('checkinNote').value
+  };
+  try {
+    if (currentCheckin) {
+      await api('/api/checkins/' + currentCheckin.id, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/api/checkins', { method: 'POST', body: JSON.stringify(body) });
+    }
+    await loadCheckins();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteCheckin(id) {
+  if (!confirm('确认删除该打卡记录？')) return;
+  try {
+    await api('/api/checkins/' + id, { method: 'DELETE' });
+    await loadCheckins();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function showStats() {
+  activateNav('navStats');
+  try {
+    const s = await api('/api/stats');
+    const items = [
+      ['总学习日', s.total_days],
+      ['已完成学习日', s.done_days],
+      ['计划总学时', s.total_planned_hours],
+      ['已完成学时', s.done_hours],
+      ['连续打卡', s.streak_days],
+      ['整体进度', s.progress_pct + '%']
+    ];
+    setMain(
+      '<div class="panel">' +
+      '<div class="panel-head"><h2>统计概览</h2></div>' +
+      '<div class="form-grid">' +
+      items.map(function (item) {
+        return '<div><label>' + item[0] + '</label><div style="font-size:24px;font-weight:600">' + esc(item[1]) + '</div></div>';
+      }).join('') +
+      '</div></div>'
+    );
+  } catch (e) {
+    setMain('<div class="empty">' + esc(e.message) + '</div>');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  if (token) showApp();
+  else showLogin();
+});
+</script>
+</body>
+</html>

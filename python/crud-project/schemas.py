@@ -130,6 +130,67 @@ class WeekFullOut(BaseModel):
 
 
 # 定义前端一次性加载时使用的完整阶段树结构。
+class ResourceIn(BaseModel):
+    title: str
+    url: str
+    kind: str = "free"
+    sort_order: int = 0
+
+
+class ResourceOut(ResourceIn):
+    id: int
+
+
+class PhaseCreate(BaseModel):
+    title: str
+    period: Optional[str] = None
+    desc: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: int = 0
+    tips: list[str] = []
+    resources: list[ResourceIn] = []
+
+
+class PhaseUpdate(BaseModel):
+    title: Optional[str] = None
+    period: Optional[str] = None
+    desc: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: Optional[int] = None
+    tips: Optional[list[str]] = None
+    resources: Optional[list[ResourceIn]] = None
+
+
+class WeekCreate(BaseModel):
+    title: str
+    week_num: Optional[int] = None
+    weeks_large: bool = False
+    sort_order: int = 0
+
+
+class WeekUpdate(BaseModel):
+    title: Optional[str] = None
+    week_num: Optional[int] = None
+    weeks_large: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class DayCreate(BaseModel):
+    topic: str
+    hours: float = 3
+    resource: Optional[str] = None
+    detail: str = ""
+    sort_order: int = 0
+
+
+class DayUpdate(BaseModel):
+    topic: Optional[str] = None
+    hours: Optional[float] = None
+    resource: Optional[str] = None
+    detail: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
 class PhaseFullOut(BaseModel):
     # 阶段主键。
     id: int
@@ -147,6 +208,7 @@ class PhaseFullOut(BaseModel):
     done_days: int = 0
     # 阶段建议文本列表。
     tips: list[str] = []
+    resources: list[ResourceOut] = []
     # 阶段下完整的周列表，周中继续嵌套学习日。
     weeks: list[WeekFullOut] = []
 
@@ -174,6 +236,12 @@ class CheckinCreate(BaseModel):
     hours: float = 3
     # 打卡备注，默认空字符串。
     note: str = ""
+
+class CheckinUpdate(BaseModel):
+    day_id: Optional[int] = None
+    date: Optional[date] = None
+    hours: Optional[float] = None
+    note: Optional[str] = None
 
 # 定义打卡记录的响应结构。
 class CheckinOut(BaseModel):
@@ -223,3 +291,8 @@ class ApiResult(BaseModel):
     msg: str = "success"
     # data 可以承载列表、字典或具体 Schema，因此使用通用 object 类型。
     data: object = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str

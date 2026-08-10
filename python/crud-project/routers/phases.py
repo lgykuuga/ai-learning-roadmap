@@ -12,8 +12,9 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 # get_db 为每个接口请求提供数据库 Session。
 from database import get_db
+from routers.auth import get_current_admin
 # 导入路线、进度和打卡相关的 ORM 模型。
-from models import Phase, Week, Day, Progress, Checkin
+from models import Phase, Week, Day, Progress, Checkin, Tip, Resource
 # 导入本文件用于校验和格式化响应的 Pydantic Schema。
 from schemas import (
     # 列表和详情响应模型。
@@ -22,6 +23,7 @@ from schemas import (
     PhaseFullOut, DoneToggle, NoteUpdate,
     # 统计响应和统一接口响应模型。
     StatsOut, ApiResult,
+    PhaseCreate, PhaseUpdate, WeekCreate, WeekUpdate, DayCreate, DayUpdate,
 )
 # 导入时间、日期和时间差工具；timezone.utc 用于生成带时区的当前时间。
 from datetime import datetime, timezone, date, timedelta
@@ -72,6 +74,7 @@ async def list_phases(db: AsyncSession = Depends(get_db)):
             selectinload(Phase.weeks).selectinload(Week.days),
             # 第二条加载链：Phase.tips。
             selectinload(Phase.tips),
+            selectinload(Phase.resources),
         # 阶段按 sort_order 排序。
         ).order_by(Phase.sort_order)
     )
@@ -125,12 +128,170 @@ async def list_phases(db: AsyncSession = Depends(get_db)):
             total_days=td, done_days=dd,
             # 把 Tip ORM 对象列表转换为纯文本列表；没有建议时返回空列表。
             tips=[t.text for t in p.tips] if p.tips else [],
+            resources=[{"id": r.id, "title": r.title, "url": r.url, "kind": r.kind, "sort_order": r.sort_order} for r in p.resources] if p.resources else [],
             # 写入当前阶段的完整周树。
             weeks=weeks,
         ))
     # model_dump() 把每个 Pydantic 对象转成可 JSON 序列化的字典。
     return ApiResult(data=[o.model_dump() for o in out])
 
+
+# ============================================================
+# Content CRUD
+# ============================================================
+async def _get_phase_with_children(db: AsyncSession, phase_id: int):
+    return await db.get(Phase, phase_id, options=[
+        selectinload(Phase.weeks).selectinload(Week.days),
+        selectinload(Phase.tips),
+        selectinload(Phase.resources),
+    ])
+
+
+async def _delete_day_children(db: AsyncSession, day: Day):
+    result = await db.execute(select(Progress).where(Progress.day_id == day.id))
+    prog = result.scalar_one_or_none()
+    if prog:
+        await db.delete(prog)
+    result = await db.execute(select(Checkin).where(Checkin.day_id == day.id))
+    for ch in result.scalars().all():
+        await db.delete(ch)
+
+
+def _set_fields(obj, data, fields):
+    for key in fields:
+        if key in data:
+            setattr(obj, key, data[key])
+
+
+@router.post("/phases", response_model=ApiResult)
+async def create_phase(body: PhaseCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    phase = Phase(title=body.title, period=body.period, desc=body.desc,
+                  color=body.color, sort_order=body.sort_order)
+    db.add(phase)
+    await db.flush()
+    for i, tip in enumerate(body.tips):
+        db.add(Tip(phase_id=phase.id, text=tip, sort_order=i))
+    for i, res in enumerate(body.resources):
+        db.add(Resource(phase_id=phase.id, title=res.title, url=res.url,
+                        kind=res.kind, sort_order=res.sort_order))
+    await db.commit()
+    return ApiResult(msg="阶段已创建", data={"id": phase.id})
+
+
+@router.put("/phases/{phase_id}", response_model=ApiResult)
+async def update_phase(phase_id: int, body: PhaseUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    phase = await _get_phase_with_children(db, phase_id)
+    if not phase:
+        raise HTTPException(404, "阶段不存在")
+    data = body.model_dump(exclude_unset=True)
+    _set_fields(phase, data, ["title", "period", "desc", "color", "sort_order"])
+    if "tips" in data:
+        for tip in list(phase.tips):
+            await db.delete(tip)
+        for i, tip in enumerate(data["tips"]):
+            db.add(Tip(phase_id=phase.id, text=tip, sort_order=i))
+    if "resources" in data:
+        for res in list(phase.resources):
+            await db.delete(res)
+        for i, res in enumerate(data["resources"]):
+            db.add(Resource(phase_id=phase.id, title=res["title"], url=res["url"],
+                            kind=res.get("kind", "free"), sort_order=res.get("sort_order", 0)))
+    await db.commit()
+    return ApiResult(msg="阶段已更新")
+
+
+@router.delete("/phases/{phase_id}", response_model=ApiResult)
+async def delete_phase(phase_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    phase = await _get_phase_with_children(db, phase_id)
+    if not phase:
+        raise HTTPException(404, "阶段不存在")
+    for week in phase.weeks:
+        for day in week.days:
+            await _delete_day_children(db, day)
+        for day in week.days:
+            await db.delete(day)
+    for tip in phase.tips:
+        await db.delete(tip)
+    for res in phase.resources:
+        await db.delete(res)
+    for week in phase.weeks:
+        await db.delete(week)
+    await db.delete(phase)
+    await db.commit()
+    return ApiResult(msg="阶段已删除")
+
+
+@router.post("/phases/{phase_id}/weeks", response_model=ApiResult)
+async def create_week(phase_id: int, body: WeekCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    phase = await db.get(Phase, phase_id)
+    if not phase:
+        raise HTTPException(404, "阶段不存在")
+    week = Week(phase_id=phase.id, title=body.title, week_num=body.week_num,
+                weeks_large=body.weeks_large, sort_order=body.sort_order)
+    db.add(week)
+    await db.flush()
+    await db.commit()
+    return ApiResult(msg="周已创建", data={"id": week.id})
+
+
+@router.put("/weeks/{week_id}", response_model=ApiResult)
+async def update_week(week_id: int, body: WeekUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    week = await db.get(Week, week_id)
+    if not week:
+        raise HTTPException(404, "周不存在")
+    _set_fields(week, body.model_dump(exclude_unset=True),
+                ["title", "week_num", "weeks_large", "sort_order"])
+    await db.commit()
+    return ApiResult(msg="周已更新")
+
+
+@router.delete("/weeks/{week_id}", response_model=ApiResult)
+async def delete_week(week_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    week = await db.get(Week, week_id, options=[selectinload(Week.days)])
+    if not week:
+        raise HTTPException(404, "周不存在")
+    for day in week.days:
+        await _delete_day_children(db, day)
+    for day in week.days:
+        await db.delete(day)
+    await db.delete(week)
+    await db.commit()
+    return ApiResult(msg="周已删除")
+
+
+@router.post("/weeks/{week_id}/days", response_model=ApiResult)
+async def create_day(week_id: int, body: DayCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    week = await db.get(Week, week_id)
+    if not week:
+        raise HTTPException(404, "周不存在")
+    day = Day(week_id=week.id, topic=body.topic, hours=body.hours,
+              resource=body.resource, detail=body.detail, sort_order=body.sort_order)
+    db.add(day)
+    await db.flush()
+    await db.commit()
+    return ApiResult(msg="学习日已创建", data={"id": day.id})
+
+
+@router.put("/days/{day_id}", response_model=ApiResult)
+async def update_day(day_id: int, body: DayUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    day = await db.get(Day, day_id)
+    if not day:
+        raise HTTPException(404, "学习日不存在")
+    _set_fields(day, body.model_dump(exclude_unset=True),
+                ["topic", "hours", "resource", "detail", "sort_order"])
+    await db.commit()
+    return ApiResult(msg="学习日已更新")
+
+
+@router.delete("/days/{day_id}", response_model=ApiResult)
+async def delete_day(day_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    day = await db.get(Day, day_id)
+    if not day:
+        raise HTTPException(404, "学习日不存在")
+    await _delete_day_children(db, day)
+    await db.delete(day)
+    await db.commit()
+    return ApiResult(msg="学习日已删除")
 
 # 注册 GET /api/phases/{phase_id}/weeks；花括号部分会解析为路径参数。
 @router.get("/phases/{phase_id}/weeks", response_model=ApiResult)

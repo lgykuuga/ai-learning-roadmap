@@ -6,6 +6,7 @@ main.py — 学习路线图后台服务入口
 """
 # 从 FastAPI 包导入应用类，用它创建整个 Web 服务。
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 # 导入静态文件服务，让浏览器能够访问 static 目录中的 HTML、CSS 和 JavaScript。
 from fastapi.staticfiles import StaticFiles
 # 导入跨域中间件，控制其他网站能否调用本项目的接口。
@@ -14,9 +15,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.phases import router as phases_router
 # 导入打卡记录相关路由，同样给 router 设置清晰的别名。
 from routers.checkins import router as checkins_router
+from routers.auth import router as auth_router, hash_password
+from sqlalchemy import select
+from database import SyncSessionLocal
+from models import AdminUser
 
 # 创建 FastAPI 应用对象；Uvicorn 启动时寻找的 app 就是这个变量。
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    with SyncSessionLocal() as db:
+        exists = db.execute(
+            select(AdminUser).where(AdminUser.username == "admin")
+        ).scalar_one_or_none()
+        if not exists:
+            db.add(AdminUser(username="admin", password_hash=hash_password("admin123")))
+            db.commit()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     # 接口文档页面显示的项目标题。
     title="📋 学习路线图 API",
     # 接口文档页面显示的项目说明。
@@ -39,6 +57,7 @@ app.add_middleware(
 
 # 把阶段、周、天、进度相关接口注册到主应用。
 app.include_router(phases_router)
+app.include_router(auth_router)
 # 把打卡记录相关接口注册到主应用。
 app.include_router(checkins_router)
 

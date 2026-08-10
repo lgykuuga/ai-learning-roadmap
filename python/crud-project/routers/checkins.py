@@ -13,7 +13,7 @@ from database import get_db
 # 导入本文件需要查询或写入的 ORM 模型。
 from models import Checkin, Day, Progress
 # 导入请求、响应和通用结果 Schema。
-from schemas import CheckinCreate, CheckinOut, ApiResult
+from schemas import CheckinCreate, CheckinUpdate, CheckinOut, ApiResult
 # datetime 生成当前时间，timezone.utc 提供明确的 UTC 时区。
 from datetime import datetime, timezone
 
@@ -124,3 +124,35 @@ async def create_checkin(body: CheckinCreate, db: AsyncSession = Depends(get_db)
     await db.commit()
     # 提交后返回新打卡记录的主键。
     return ApiResult(msg="打卡成功", data={"id": ch.id})
+
+
+@router.put("/checkins/{checkin_id}", response_model=ApiResult)
+async def update_checkin(checkin_id: int, body: CheckinUpdate, db: AsyncSession = Depends(get_db)):
+    """更新一条打卡记录。"""
+    ch = await db.get(Checkin, checkin_id)
+    if not ch:
+        raise HTTPException(404, "打卡记录不存在")
+    if body.day_id is not None:
+        day = await db.get(Day, body.day_id)
+        if not day:
+            raise HTTPException(404, "学习日不存在")
+        ch.day_id = body.day_id
+    if body.date is not None:
+        ch.date = body.date
+    if body.hours is not None:
+        ch.hours = body.hours
+    if body.note is not None:
+        ch.note = body.note
+    await db.commit()
+    return ApiResult(msg="打卡记录已更新")
+
+
+@router.delete("/checkins/{checkin_id}", response_model=ApiResult)
+async def delete_checkin(checkin_id: int, db: AsyncSession = Depends(get_db)):
+    """删除一条打卡记录。"""
+    ch = await db.get(Checkin, checkin_id)
+    if not ch:
+        raise HTTPException(404, "打卡记录不存在")
+    await db.delete(ch)
+    await db.commit()
+    return ApiResult(msg="打卡记录已删除")
