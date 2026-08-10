@@ -1,0 +1,62 @@
+{
+  "config.py": {
+    "mtime": 1785498594.8749104,
+    "ast_hash": "bfab3cce2f2389b1b067c79468b8cafe",
+    "semantic_hash": "bfab3cce2f2389b1b067c79468b8cafe"
+  },
+  "database.py": {
+    "mtime": 1785489864.881488,
+    "ast_hash": "6da143c211c4db968f866454ba04bcff",
+    "semantic_hash": "6da143c211c4db968f866454ba04bcff"
+  },
+  "main.py": {
+    "mtime": 1785490206.201087,
+    "ast_hash": "e10b06c78ebfb63c62545d95a9c73e36",
+    "semantic_hash": "e10b06c78ebfb63c62545d95a9c73e36"
+  },
+  "models.py": {
+    "mtime": 1785490177.7329607,
+    "ast_hash": "b7186c2b4e88fce5e13a7e8210e10d32",
+    "semantic_hash": "b7186c2b4e88fce5e13a7e8210e10d32"
+  },
+  "routers/__init__.py": {
+    "mtime": 1785489897.1360352,
+    "ast_hash": "6edc8c07f6e62938b5411ffe5d136af6",
+    "semantic_hash": "6edc8c07f6e62938b5411ffe5d136af6"
+  },
+  "routers/checkins.py": {
+    "mtime": 1785489938.2912688,
+    "ast_hash": "ea24e4dec34aa46e78cb6a374c524a6f",
+    "semantic_hash": "ea24e4dec34aa46e78cb6a374c524a6f"
+  },
+  "routers/phases.py": {
+    "mtime": 1785500315.5007856,
+    "ast_hash": "5f9f8a8ae72f8fc30518425a9561e9e5",
+    "semantic_hash": "5f9f8a8ae72f8fc30518425a9561e9e5"
+  },
+  "schemas.py": {
+    "mtime": 1785499503.5204053,
+    "ast_hash": "d4dc57a30aadd541c0af1d8cee97e80e",
+    "semantic_hash": "d4dc57a30aadd541c0af1d8cee97e80e"
+  },
+  "seed.py": {
+    "mtime": 1785504775.9580503,
+    "ast_hash": "5ed774e9a04d654496aad2a7f1f651fb",
+    "semantic_hash": "5ed774e9a04d654496aad2a7f1f651fb"
+  },
+  "docker-compose.yml": {
+    "mtime": 1785489831.0953777,
+    "ast_hash": "e7bbbf94b6817683f03ee3de4244c122",
+    "semantic_hash": "e7bbbf94b6817683f03ee3de4244c122"
+  },
+  "requirements.txt": {
+    "mtime": 1785489846.8701434,
+    "ast_hash": "c27ebd712f572b518a28b4c4970e7331",
+    "semantic_hash": "c27ebd712f572b518a28b4c4970e7331"
+  },
+  "static/ai-learning-roadmap.html": {
+    "mtime": 1785507732.958904,
+    "ast_hash": "54e60c24bd95ecc5a2d88eb71e1c8ca6",
+    "semantic_hash": "54e60c24bd95ecc5a2d88eb71e1c8ca6"
+  }
+}

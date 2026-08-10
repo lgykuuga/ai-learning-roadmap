@@ -15,7 +15,7 @@ from config import DATABASE_URL, SYNC_DATABASE_URL
 
 # 异步引擎 — 生产/API用
 # create_async_engine 根据异步 URL 创建连接池；pool_size 是常驻连接数，max_overflow 是临时扩容量。
-async_engine = create_async_engine(DATABASE_URL, echo=False, pool_size=10, max_overflow=20)
+async_engine = create_async_engine(DATABASE_URL, echo=False)
 # 创建异步 Session 工厂；expire_on_commit=False 让提交后的 ORM 对象仍能读取已有属性。
 AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 

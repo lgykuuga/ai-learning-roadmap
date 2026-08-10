@@ -300,6 +300,7 @@ input[type="text"], input[type="number"], input[type="date"], input[type="search
   .phase-body,.week-body,.day-body { max-height:none; display:block }
 }
 </style>
+<link rel="stylesheet" href="docs.css?v=2">
 </head>
 <body>
 
@@ -560,10 +561,38 @@ async function toggleDay(dayId, done) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done: !done })
     });
-    await loadData();
-    renderAll();
+    // 只更新本地数据和UI，不重建整个页面
+    for (const p of D) {
+        for (const w of p.weeks) {
+            for (const d of w.days) {
+                if (d.id === dayId) { d.done = !done; break; }
+            }
+        }
+    }
+    // 更新复选框样式
+    const cards = document.querySelectorAll('.day-card');
+    for (const card of cards) {
+        const ck = card.querySelector('.day-check');
+        if (ck && ck.getAttribute('onclick') && ck.getAttribute('onclick').includes('toggleDay(' + dayId)) {
+            if (!done) ck.classList.add('done'); else ck.classList.remove('done');
+            break;
+        }
+    }
+    updateStats();
     if (!done) { spawnConfetti(); toast('✅ 已完成'); }
     else { toast('↩️ 已取消'); }
+}
+
+function updateStats() {
+    let totalDays=0,doneDays=0,doneHours=0;
+    D.forEach(p=>{p.weeks.forEach(w=>{w.days.forEach(d=>{totalDays++;if(d.done){doneDays++;doneHours+=d.hours||3;}});});});
+    const tp=totalDays>0?Math.round(doneDays/totalDays*100):0;
+    const elPct=document.getElementById('overallPct');if(elPct)elPct.textContent=tp+'%';
+    const elBar=document.getElementById('overallBar');if(elBar)elBar.style.width=tp+'%';
+    const elDone=document.getElementById('doneCount');if(elDone)elDone.textContent='已完成 '+doneDays+' 天';
+    const elTotal=document.getElementById('totalCount');if(elTotal)elTotal.textContent=totalDays;
+    const elHrs=document.getElementById('totalHours');if(elHrs)elHrs.textContent=doneHours.toFixed(0);
+    D.forEach(p=>{let pd=0,pt=0;p.weeks.forEach(w=>{pt+=w.days.length;w.days.forEach(d=>{if(d.done)pd++;});});const el=document.getElementById('navPct'+p.id);if(el)el.textContent=(pt>0?Math.round(pd/pt*100):0)+'%';});
 }
 
 async function saveNoteDB(dayId, note) {
@@ -914,8 +943,343 @@ document.addEventListener('DOMContentLoaded', async function () {
     renderAll();
     initHeaderParticles();
     document.getElementById('checkinModal').addEventListener('click', function (e) { if (e.target === this) closeCheckinModal(); });
-    document.addEventListener('keydown', function (e) { if (e.ctrlKey && e.key === 'k') { e.preventDefault(); openCheckinModal(); } });
+document.addEventListener('keydown', function (e) { if (e.ctrlKey && e.key === 'k') { e.preventDefault(); openCheckinModal(); } });
 });
+
+// ============================================================
+// DOCS READER MODE: sidebar tree + Markdown content
+// ============================================================
+let selected = { type: 'phase', pi: 0, wi: 0, di: 0 };
+let openGroups = new Set(['p0']);
+let hashHandled = false;
+
+function phaseProgress(phase) {
+    let pt = 0, pd = 0, ph = 0, pdh = 0;
+    phase.weeks.forEach(w => {
+        w.days.forEach(d => {
+            pt++; ph += d.hours || 3;
+            if (d.done) { pd++; pdh += d.hours || 3; }
+        });
+    });
+    return { pt, pd, ph, pdh, pct: pt ? Math.round(pd / pt * 100) : 0 };
+}
+
+function weekProgress(w) {
+    let wd = 0;
+    w.days.forEach(d => { if (d.done) wd++; });
+    const wp = w.days.length ? Math.round(wd / w.days.length * 100) : 0;
+    return { wd, total: w.days.length, pct: wp };
+}
+
+function renderAll() {
+    if (!hashHandled) {
+        const m = location.hash.match(/^#day-(\d+)-(\d+)-(\d+)$/);
+        if (m) {
+            selected = { type: 'day', pi: +m[1], wi: +m[2], di: +m[3] };
+            openGroups.add('p' + selected.pi);
+            openGroups.add('p' + selected.pi + '-w' + selected.wi);
+            hashHandled = true;
+        }
+    }
+    renderSidebar();
+    renderSelected();
+    updateStats();
+    renderSideNotes();
+}
+
+function renderSidebar() {
+    const nav = document.querySelector('.side-nav');
+    if (!nav) return;
+    let h = '<div class="side-nav-title">学习目录</div>';
+
+    D.forEach((phase, pi) => {
+        const p = phaseProgress(phase);
+        const pk = 'p' + pi;
+        const open = openGroups.has(pk);
+        h += '<div class="tree-group' + (open ? ' open' : '') + '">';
+        h += '<div class="tree-item tree-phase" onclick="clickGroup(\'phase\',' + pi + ')">';
+        h += '<span class="tree-caret">' + (open ? '&#9662;' : '&#9656;') + '</span>';
+        h += '<span class="dot" style="background:' + (phase.color || '#409eff') + '"></span>';
+        h += '<span class="tree-label">' + escHtml(phase.title) + '</span>';
+        h += '<span class="tree-pct">' + p.pct + '%</span></div>';
+        h += '<div class="tree-children">';
+
+        phase.weeks.forEach((w, wi) => {
+            const wp = weekProgress(w);
+            const wk = pk + '-w' + wi;
+            const wopen = openGroups.has(wk);
+            const weekSel = selected.type === 'week' && selected.pi === pi && selected.wi === wi;
+            h += '<div class="tree-group' + (wopen ? ' open' : '') + '">';
+            h += '<div class="tree-item tree-week' + (weekSel ? ' active' : '') + '" onclick="clickGroup(\'week\',' + pi + ',' + wi + ')">';
+            h += '<span class="tree-caret">' + (wopen ? '&#9662;' : '&#9656;') + '</span>';
+            h += '<span class="tree-label">' + escHtml(w.title) + '</span>';
+            h += '<span class="tree-pct">' + wp.wd + '/' + wp.total + '</span></div>';
+            h += '<div class="tree-children">';
+
+            w.days.forEach((d, di) => {
+                const daySel = selected.type === 'day' && selected.pi === pi && selected.wi === wi && selected.di === di;
+                h += '<a class="tree-item tree-day' + (daySel ? ' active' : '') + '" href="javascript:void(0)" onclick="selectNode(\'day\',' + pi + ',' + wi + ',' + di + ')">';
+                h += '<span class="tree-day-num">D' + (di + 1) + '</span>';
+                h += '<span class="tree-label">' + escHtml(d.topic) + '</span>';
+                if (d.done) h += '<span class="tree-done">&#10003;</span>';
+                h += '</a>';
+            });
+
+            h += '</div></div>';
+        });
+
+        h += '</div></div>';
+    });
+
+    nav.innerHTML = h;
+}
+
+function toggleGroup(key) {
+    if (openGroups.has(key)) openGroups.delete(key);
+    else openGroups.add(key);
+}
+
+function clickGroup(type, pi, wi) {
+    const key = type === 'phase' ? 'p' + pi : 'p' + pi + '-w' + wi;
+    const opening = !openGroups.has(key);
+    toggleGroup(key);
+    if (opening) selectNode(type, pi, wi);
+    else renderAll();
+}
+
+function selectNode(type, pi, wi, di) {
+    selected = { type: type, pi: pi, wi: wi || 0, di: di || 0 };
+    if (type === 'phase') openGroups.add('p' + pi);
+    if (type === 'week') {
+        openGroups.add('p' + pi);
+        openGroups.add('p' + pi + '-w' + wi);
+    }
+    renderAll();
+}
+
+function renderSelected() {
+    const el = document.getElementById('contentArea');
+    if (!D.length) {
+        el.innerHTML = '<div class="phase-card" style="padding:40px;text-align:center"><h3 style="color:#f56c6c">Failed to load data</h3><p style="color:var(--muted)">请确认后端服务已启动</p></div>';
+        return;
+    }
+    if (selected.type === 'phase') el.innerHTML = renderPhase(selected.pi);
+    else if (selected.type === 'week') el.innerHTML = renderWeek(selected.pi, selected.wi);
+    else el.innerHTML = renderDay(selected.pi, selected.wi, selected.di);
+}
+
+function renderPhase(pi) {
+    const p = D[pi], pp = phaseProgress(p);
+    let h = '<article class="doc">';
+    h += '<div class="doc-breadcrumb">学习路线 / ' + escHtml(p.title) + '</div>';
+    h += '<h1>' + escHtml(p.title) + '</h1>';
+    h += '<div class="doc-meta">' + escHtml(p.period || '') + ' &middot; ' + pp.pt + ' 天 &middot; 已完成 ' + pp.pd + ' 天</div>';
+    h += '<div class="doc-progress"><div class="progress-bar-outer"><div class="progress-bar-inner" style="width:' + pp.pct + '%"></div></div><span>' + pp.pct + '%</span></div>';
+    h += '<div class="md">' + mdToHtml(p.desc || '') + '</div>';
+    if (p.tips) p.tips.forEach(t => { h += '<div class="tip-card">' + mdToHtml(t) + '</div>'; });
+    h += '<h2>阶段章节</h2><div class="doc-list">';
+    p.weeks.forEach((w, wi) => {
+        const wp = weekProgress(w);
+        h += '<a class="doc-list-item" href="javascript:void(0)" onclick="selectNode(\'week\',' + pi + ',' + wi + ')">';
+        h += '<span class="doc-list-title">' + escHtml(w.title) + '</span>';
+        h += '<span class="doc-list-meta">' + wp.wd + '/' + wp.total + ' &middot; ' + wp.pct + '%</span></a>';
+    });
+    h += '</div>';
+    h += renderRes(pi + 1);
+    h += '</article>';
+    return h;
+}
+
+function renderWeek(pi, wi) {
+    const p = D[pi], w = p.weeks[wi], wp = weekProgress(w);
+    let h = '<article class="doc">';
+    h += '<div class="doc-breadcrumb"><a href="javascript:void(0)" onclick="selectNode(\'phase\',' + pi + ')">' + escHtml(p.title) + '</a> / ' + escHtml(w.title) + '</div>';
+    h += '<h1>' + escHtml(w.title) + '</h1>';
+    h += '<div class="doc-meta">' + wp.wd + '/' + wp.total + ' 天已完成 &middot; ' + wp.pct + '%</div>';
+    h += '<div class="doc-progress"><div class="progress-bar-outer"><div class="progress-bar-inner" style="width:' + wp.pct + '%"></div></div><span>' + wp.pct + '%</span></div>';
+    h += '<h2>每日学习内容</h2><div class="doc-list">';
+    w.days.forEach((d, di) => {
+        h += '<a class="doc-list-item" href="javascript:void(0)" onclick="selectNode(\'day\',' + pi + ',' + wi + ',' + di + ')">';
+        h += '<span class="doc-list-day">D' + (di + 1) + '</span>';
+        h += '<span class="doc-list-title">' + escHtml(d.topic) + '</span>';
+        h += '<span class="doc-list-meta">' + (d.hours || 3) + 'h &middot; ' + (d.done ? '已完成' : '未完成') + '</span></a>';
+    });
+    h += '</div></article>';
+    return h;
+}
+
+function renderDay(pi, wi, di) {
+    const p = D[pi], w = p.weeks[wi], d = w.days[di];
+    let h = '<article class="doc">';
+    h += '<div class="doc-breadcrumb"><a href="javascript:void(0)" onclick="selectNode(\'phase\',' + pi + ')">' + escHtml(p.title) + '</a> / <a href="javascript:void(0)" onclick="selectNode(\'week\',' + pi + ',' + wi + ')">' + escHtml(w.title) + '</a> / D' + (di + 1) + '</div>';
+    h += '<div class="doc-day-head">';
+    h += '<div><h1>' + escHtml(d.topic) + '</h1>';
+    h += '<div class="doc-meta">D' + (di + 1) + ' &middot; ' + (d.hours || 3) + 'h &middot; ' + (d.done ? '已完成' : '未完成') + '</div></div>';
+    h += '<button class="btn' + (d.done ? '' : ' btn-primary') + '" onclick="toggleDay(' + d.id + ',' + d.done + ')">' + (d.done ? '取消完成' : '标记完成') + '</button>';
+    h += '</div>';
+    h += '<div class="md">' + mdToHtml(d.detail || '') + '</div>';
+    h += '<div class="note-block"><label for="dayNote">学习笔记</label>';
+    h += '<textarea id="dayNote" class="day-note-input" rows="3" placeholder="写点学习笔记..." data-dayid="' + d.id + '" oninput="saveNoteDB(' + d.id + ',this.value)">' + escHtml(d.note || '') + '</textarea>';
+    h += '<span class="note-save-status" id="noteStat_' + d.id + '">' + (d.checked_at ? fmtDateStr(d.checked_at) : '') + '</span></div>';
+    h += '</article>';
+    return h;
+}
+
+async function toggleDay(dayId, done) {
+    await fetch(API_BASE + '/api/days/' + dayId + '/done', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ done: !done })
+    });
+    for (const p of D) {
+        for (const w of p.weeks) {
+            for (const d of w.days) {
+                if (d.id === dayId) { d.done = !done; break; }
+            }
+        }
+    }
+    updateStats();
+    renderSelected();
+    renderSidebar();
+    renderSideNotes();
+    if (!done) spawnConfetti();
+    toast(done ? '已取消' : '已完成');
+}
+
+function expandAll() {
+    D.forEach((p, pi) => {
+        openGroups.add('p' + pi);
+        p.weeks.forEach((w, wi) => openGroups.add('p' + pi + '-w' + wi));
+    });
+    renderAll();
+    toast('目录已展开');
+}
+
+function collapseAll() {
+    openGroups = new Set(['p' + selected.pi]);
+    renderAll();
+    toast('目录已折叠');
+}
+
+function scrollToPhase(id) {
+    selectNode('phase', parseInt(id.replace('phase', ''), 10) - 1);
+}
+
+function scrollToDay(dayId, pi, wi, di) {
+    selectNode('day', pi, wi, di);
+}
+
+function togglePhase() { }
+function toggleWeek() { }
+function toggleDayPanel() { }
+
+// ============================================================
+// Minimal Markdown renderer for lesson content
+// ============================================================
+function inlineMd(s) {
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+    return s;
+}
+
+function highlightMdCode(line) {
+    let s = escHtml(line);
+    s = s.replace(/\b(def|class|import|from|return|print|if|for|while|async|await|yield|public|private|static|void|String|int|boolean)\b/g, '<span class="rt-kw">$1</span>');
+    return s;
+}
+
+function mdToHtml(text) {
+    text = (text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    text = text.replace(/^【([^】]+)】(.*)$/gm, function (m, title, rest) {
+        return '## ' + title + (rest ? ' ' + rest.trim() : '');
+    });
+    text = text.replace(/^\s*•\s+/gm, '- ');
+    text = text.replace(/^\s*\[CODE\s*(\w*)\]/gm, '```$1');
+    text = text.replace(/^\s*\[\/CODE\]/gm, '```');
+
+    const lines = text.split('\n');
+    let out = '', i = 0;
+    while (i < lines.length) {
+        const line = lines[i].trimEnd();
+        const t = line.trim();
+
+        if (/^```/.test(t)) {
+            const lang = t.replace(/^```/, '').trim();
+            const buf = [];
+            i++;
+            while (i < lines.length && !/^```/.test(lines[i].trim())) { buf.push(highlightMdCode(lines[i])); i++; }
+            i++;
+            out += '<pre class="rt-code">' + buf.join('\n') + '</pre>\n';
+            continue;
+        }
+
+        const h = t.match(/^(#{1,6})\s+(.*)$/);
+        if (h) {
+            const n = h[1].length;
+            out += '<h' + n + '>' + inlineMd(escHtml(h[2])) + '</h' + n + '>\n';
+            i++;
+            continue;
+        }
+
+        if (/^>\s?/.test(t)) {
+            const buf = [];
+            while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+                buf.push(inlineMd(escHtml(lines[i].trim().replace(/^>\s?/, ''))));
+                i++;
+            }
+            out += '<blockquote>' + buf.join('<br>') + '</blockquote>\n';
+            continue;
+        }
+
+        if (/^[-*•]\s+/.test(t)) {
+            out += '<ul class="rt-ul">\n';
+            while (i < lines.length && /^[-*•]\s+/.test(lines[i].trim())) {
+                out += '<li>' + inlineMd(escHtml(lines[i].trim().replace(/^[-*•]\s+/, ''))) + '</li>\n';
+                i++;
+            }
+            out += '</ul>\n';
+            continue;
+        }
+
+        if (/^\d+[.、]\s+/.test(t)) {
+            out += '<ol class="rt-ol">\n';
+            while (i < lines.length && /^\d+[.、]\s+/.test(lines[i].trim())) {
+                out += '<li>' + inlineMd(escHtml(lines[i].trim().replace(/^\d+[.、]\s+/, ''))) + '</li>\n';
+                i++;
+            }
+            out += '</ol>\n';
+            continue;
+        }
+
+        if (t.indexOf('|') >= 0 && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1])) {
+            const head = t.replace(/^\|/, '').replace(/\|$/, '').split('|').map(x => inlineMd(escHtml(x.trim())));
+            i += 2;
+            const rows = [];
+            while (i < lines.length && lines[i].trim().indexOf('|') >= 0) {
+                rows.push(lines[i].trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(x => inlineMd(escHtml(x.trim()))));
+                i++;
+            }
+            out += '<table><thead><tr>' + head.map(x => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>';
+            rows.forEach(r => { out += '<tr>' + r.map(x => '<td>' + x + '</td>').join('') + '</tr>'; });
+            out += '</tbody></table>\n';
+            continue;
+        }
+
+        if (t === '') { i++; continue; }
+
+        const para = [];
+        while (i < lines.length) {
+            const pt = lines[i].trim();
+            if (pt === '' || /^(#{1,6})\s/.test(pt) || /^```/.test(pt) || /^>\s?/.test(pt) || /^[-*•]\s+/.test(pt) || /^\d+[.、]\s+/.test(pt)) break;
+            para.push(pt);
+            i++;
+        }
+        out += '<p>' + para.map(x => inlineMd(escHtml(x))).join(' ') + '</p>\n';
+    }
+    return out;
+}
 </script>
 </body>
 </html>
