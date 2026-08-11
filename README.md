@@ -9,7 +9,7 @@ Python + FastAPI + SQLite 全栈应用，包含学习端和后台管理端，浏
 ## 快速启动
 
 ```bash
-cd python/crud-project
+cd python/ai-learning-roadmap
 
 # 1. 安装依赖（首次）
 pip install -r requirements.txt
@@ -36,7 +36,7 @@ python -m uvicorn main:app --reload --port 8000
 ## 项目结构
 
 ```
-python/crud-project/
+python/ai-learning-roadmap/
 ├── main.py              # FastAPI 启动入口 + 静态文件挂载 + 默认管理员初始化
 ├── config.py            # 数据库连接串（切数据库只改这里）
 ├── database.py          # 异步 + 同步双引擎（SQLAlchemy 2.0）
